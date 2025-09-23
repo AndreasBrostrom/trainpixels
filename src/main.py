@@ -10,8 +10,11 @@ import neopixel
 
 # Configuration
 NUM_PIXELS = 10      # Number of LEDs
-LED_PIN = board.D18  # GPIO 18 (pin 12)
+LED_PIN = board.D21  # GPIO 21 (pin 40) - Alternative to GPIO 18
 BRIGHTNESS = 0.5     # 50% brightness
+
+# GPIO 18 seems to be reserved by system, using GPIO 21 instead
+# Other good alternatives: board.D19 (GPIO 19), board.D12 (GPIO 12)
 
 # Initialize LEDs
 pixels = neopixel.NeoPixel(LED_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
