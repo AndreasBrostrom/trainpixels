@@ -1,84 +1,55 @@
-# Multi-LED Rainbow Controller
+# WS2812B LED White Blink Controller
 
-This project supports multiple types of LED strips and displays beautiful rainbow colors with smooth animations. Now supports **WS2812/WS2811 (NeoPixel)**, **APA102/SK9822 (DotStar)**, **WS2801**, and **PWM RGB** LEDs!
+A simple Python script to control WS2812B LED strips, blinking all LEDs with white light. Perfect for testing your WS2812B LED setup!
 
 ## ✨ Features
 
-- **Multiple LED Types**: Supports 4 different LED strip/module types
-- **Automatic Connection Testing**: Built-in connection verification
-- **Easy Configuration**: Simple LED type switching
-- **Rainbow Animations**: Smooth, colorful animations
-- **Error Handling**: Helpful error messages and troubleshooting
+- **Simple white blinking** - All LEDs blink white on/off
+- **WS2812B optimized** - Specifically designed for WS2812B LEDs
+- **Easy to use** - Just run and watch your LEDs blink
+- **Safe exit** - Automatically turns off LEDs when stopped
+- **Configurable** - Adjust LED count, brightness, and timing
 
-## 🔧 Supported Hardware
+## 🔧 Hardware Requirements
 
-### LED Types
-1. **WS2812/WS2811 (NeoPixel)** - Most common addressable LEDs
-2. **APA102/SK9822 (DotStar)** - High-speed LEDs with separate clock
-3. **WS2801** - Older addressable LEDs with clock line
-4. **PWM RGB** - Individual RGB LEDs or modules
-
-### Requirements
-- **Raspberry Pi** (or compatible single-board computer)  
-- **LED strip/module** (any of the supported types above)
+- **Raspberry Pi** (or compatible single-board computer)
+- **WS2812B LED strip** (addressable RGB LEDs)
 - **Power supply** (5V, adequate for your LED count)
-- **Resistors** (330-470Ω recommended for data line protection)
+- **Resistor** (330-470Ω recommended for data line protection)
 - **Jumper wires** for connections
 
 ## 🚀 Quick Start
 
-1. **Identify your LED type** (check markings on your LED strip/module)
-2. **Edit configuration** in `src/main.py`:
+1. **Connect your WS2812B LEDs** to GPIO 18 (see wiring below)
+2. **Adjust LED count** in `src/main.py` if needed:
    ```python
-   LED_TYPE = "NEOPIXEL"  # Change to: NEOPIXEL, DOTSTAR, WS2801, or PWM
-   NUM_PIXELS = 10        # Set your LED count
+   NUM_PIXELS = 10        # Set to your actual LED count
    ```
 3. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-4. **Run the controller**:
+4. **Run the blink script**:
    ```bash
    python src/main.py
+   # or with sudo if needed:
+   sudo python src/main.py
    ```
 
 ## 📋 Wiring Guide
 
-### WS2812/WS2811 (NeoPixel) - Default
+### WS2812B LED Strip Connection
 ```
-LED Strip    Raspberry Pi
-VCC (5V)  -> 5V (Pin 2 or 4)
-GND       -> GND (Pin 6)
-Data      -> GPIO 18 (Pin 12) + 330Ω resistor
-```
-
-### APA102/SK9822 (DotStar)
-```
-LED Strip    Raspberry Pi  
-VCC (5V)  -> 5V (Pin 2 or 4)
-GND       -> GND (Pin 6)
-Data      -> GPIO 10 (Pin 19) - MOSI
-Clock     -> GPIO 11 (Pin 23) - SCLK
+WS2812B Strip    Raspberry Pi
+VCC (5V)      -> 5V (Physical Pin 2 or 4)
+GND           -> GND (Physical Pin 6)
+Data (DIN)    -> GPIO 18 (Physical Pin 12) + 330Ω resistor
 ```
 
-### WS2801
-```
-LED Strip    Raspberry Pi
-VCC (5V)  -> 5V (Pin 2 or 4)  
-GND       -> GND (Pin 6)
-Data      -> GPIO 10 (Pin 19) - MOSI
-Clock     -> GPIO 11 (Pin 23) - SCLK
-```
-
-### PWM RGB LED
-```
-RGB LED      Raspberry Pi
-VCC       -> 3.3V (Pin 1) or 5V (Pin 2)
-Red       -> GPIO 18 (Pin 12)
-Green     -> GPIO 19 (Pin 35)  
-Blue      -> GPIO 20 (Pin 38)
-GND       -> GND (Pin 6)
-```
+**Important Notes:**
+- Use a 330-470Ω resistor between GPIO 18 and the data line
+- For more than 10 LEDs, use an external 5V power supply
+- Connect all grounds together (Pi GND, LED GND, Power GND)
 
 ## 📦 Installation
 
@@ -90,28 +61,16 @@ GND       -> GND (Pin 6)
 
 2. **Install dependencies**:
    ```bash
-   # Install all LED libraries (recommended):
    pip install -r requirements.txt
-   
-   # Or install only what you need:
-   pip install adafruit-blinka  # Required for all
-   pip install adafruit-circuitpython-neopixel    # For WS2812/WS2811
-   pip install adafruit-circuitpython-dotstar     # For APA102/SK9822  
-   pip install adafruit-circuitpython-ws2801      # For WS2801
-   pip install adafruit-circuitpython-pwmio       # For PWM RGB
    ```
 
-3. **Enable SPI** (required for DotStar/WS2801):
-   ```bash
-   sudo raspi-config
-   # Interface Options -> SPI -> Enable
-   ```
-
-4. **Configure your LED type** in `src/main.py`
+3. **Configure your setup** (optional):
+   - Edit `NUM_PIXELS` in `src/main.py` to match your LED count
+   - Adjust `BRIGHTNESS` (0.1 to 1.0) for desired brightness
 
 ## 🎮 Usage
 
-The script now includes automatic connection testing and better error handling:
+Simple white blinking operation:
 
 ```bash
 python src/main.py
@@ -120,69 +79,74 @@ sudo python src/main.py
 ```
 
 **What happens:**
-1. **Configuration display** - Shows your LED type and settings
-2. **Connection test** - Tests Red, Green, Blue, and White colors
-3. **Rainbow animation** - Starts the smooth rainbow cycle
-4. **Clean exit** - Press Ctrl+C to stop and turn off LEDs
+1. **All LEDs turn white** for 1 second
+2. **All LEDs turn off** for 1 second  
+3. **Repeats continuously** until you press Ctrl+C
+4. **Clean exit** - Automatically turns off all LEDs when stopped
+
+**Terminal output:**
+```
+WS2812B White Blink - Press Ctrl+C to stop
+ON
+OFF
+ON
+OFF
+...
+```
 
 ## ⚙️ Configuration
 
 Edit these settings in `src/main.py`:
 
 ```python
-LED_TYPE = "NEOPIXEL"    # LED type: NEOPIXEL, DOTSTAR, WS2801, PWM
-NUM_PIXELS = 10          # Number of LEDs (ignored for PWM type)
-BRIGHTNESS = 1.0         # Brightness: 0.0 to 1.0
-UPDATE_DELAY = 0.05      # Animation speed in seconds
+NUM_PIXELS = 10          # Number of LEDs in your strip
+LED_PIN = board.D18      # GPIO 18 (Physical Pin 12)
+BRIGHTNESS = 0.5         # Brightness: 0.1 (dim) to 1.0 (full)
 ```
 
-### Pin Configuration
-Customize GPIO pins in the `PIN_CONFIGS` dictionary:
+**Timing adjustment:**
 ```python
-PIN_CONFIGS = {
-    "NEOPIXEL": {"data_pin": board.D18},
-    "DOTSTAR": {"data_pin": board.D10, "clock_pin": board.D11},
-    # ... etc
-}
+time.sleep(1)            # Change to 0.5 for faster, 2 for slower blinking
 ```
 
 ## 🔧 Troubleshooting
 
-### Connection Issues
-The program now includes built-in diagnostics! If LEDs don't work:
-
-1. **Check the connection test output** - it will test each color
-2. **Verify your LED type configuration** matches your hardware
-3. **Review the wiring** using the diagrams above
-4. **Try running with sudo** for GPIO permissions
-
-### Common Problems
+### Common Issues
 
 | Problem | Solution |
 |---------|----------|
-| Import errors | Install required libraries: `pip install -r requirements.txt` |
+| Import errors | Install libraries: `pip install -r requirements.txt` |
 | Permission denied | Run with `sudo python src/main.py` |
-| No LEDs light up | Check LED type, wiring, and power supply |
-| Wrong colors | Verify voltage levels and connections |
-| Only some LEDs work | Check power supply capacity |
+| No LEDs light up | Check wiring, power supply, and LED count |
+| LEDs stay dim | Increase `BRIGHTNESS` value (up to 1.0) |
+| Only first LED works | Check data line connection and LED strip continuity |
 
-### Detailed Help
-See **[LED_SETUP_GUIDE.md](LED_SETUP_GUIDE.md)** for comprehensive troubleshooting, including:
-- Hardware specifications for each LED type
-- Advanced troubleshooting steps
-- Performance optimization tips
-- Custom pin configurations
+### Quick Fixes
+1. **Check wiring** - Ensure GPIO 18 connects to DIN with resistor
+2. **Power supply** - Use external 5V supply for >10 LEDs  
+3. **LED count** - Verify `NUM_PIXELS` matches your strip
+4. **Try sudo** - GPIO access may require elevated permissions
+
+### Testing
+For advanced GPIO testing, use the diagnostic tool:
+```bash
+python gpio_diagnostic.py
+```
 
 ## 🛡️ Safety Notes
 
 - **Power off** when making wiring changes
-- **Use resistors** (330-470Ω) to protect data lines  
-- **Check power requirements** - LED strips can draw significant current
-- **Use proper voltage levels** - 5V LEDs may need level shifters with 3.3V controllers
-- **Avoid looking directly** at bright LEDs
+- **Use a resistor** (330-470Ω) to protect the data line
+- **External power** for strips with >10 LEDs
+- **Don't look directly** at bright LEDs
+- **Connect grounds** - Pi, LEDs, and power supply
 
 ## 📚 Learn More
 
-- **Hardware specs**: Check [LED_SETUP_GUIDE.md](LED_SETUP_GUIDE.md)
-- **Adafruit CircuitPython**: [Official documentation](https://circuitpython.org/)
-- **GPIO pinout**: [pinout.xyz](https://pinout.xyz/)
+- **WS2812B Datasheet**: [Official specifications](https://www.adafruit.com/product/1138)
+- **Adafruit NeoPixel Guide**: [CircuitPython tutorials](https://learn.adafruit.com/circuitpython-essentials/circuitpython-neopixel)
+- **Raspberry Pi GPIO**: [GPIO pinout reference](https://pinout.xyz/)
+
+---
+
+**Enjoy your blinking WS2812B LEDs! 🤍✨**

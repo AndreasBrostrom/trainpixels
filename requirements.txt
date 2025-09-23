@@ -1,18 +1,5 @@
-# Core Adafruit libraries
+# WS2812B LED Control Requirements
+# Core Adafruit libraries for WS2812B (NeoPixel) LEDs
+
 adafruit-blinka>=8.0.0
-
-# LED Strip Libraries (install based on your LED type)
-# For WS2812/WS2811 (NeoPixel) LEDs:
 adafruit-circuitpython-neopixel>=6.0.0
-
-# For APA102/SK9822 (DotStar) LEDs:
-adafruit-circuitpython-dotstar>=2.0.0
-
-# For WS2801 LEDs:
-adafruit-circuitpython-ws2801>=1.0.0
-
-# For PWM RGB LEDs (PWM functionality is included in adafruit-blinka):
-# No additional package needed - pwmio is part of the core CircuitPython libraries
-
-# Alternative: Install all LED libraries at once
-# pip install adafruit-circuitpython-neopixel adafruit-circuitpython-dotstar adafruit-circuitpython-ws2801
