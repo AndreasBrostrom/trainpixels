@@ -158,9 +158,6 @@ def fill_pixels(pixels, color):
 
 # Initialize the LED strip
 pixels = initialize_leds()
-if pixels is None:
-    print("Failed to initialize LEDs. Exiting.")
-    sys.exit(1)
 
 def hsv_to_rgb(h, s, v):
     """
@@ -302,11 +299,142 @@ def test_connection():
         print(f"Connection test failed: {e}")
         return False
 
+def test_all_led_variants():
+    """
+    Test all supported LED variants to find which one works with your hardware.
+    This function temporarily changes LED_TYPE and tests each variant.
+    """
+    global LED_TYPE, pixels
+    
+    print("🔍 LED Variant Auto-Detection")
+    print("=" * 50)
+    print("This will test all supported LED types to find which one works")
+    print("with your hardware. Watch your LEDs for activity!")
+    print()
+    
+    # Store original configuration
+    original_led_type = LED_TYPE
+    original_pixels = pixels
+    
+    # All LED types to test
+    led_variants = ["NEOPIXEL", "DOTSTAR", "WS2801", "PWM"]
+    working_variants = []
+    
+    for variant in led_variants:
+        print(f"🧪 Testing {variant}...")
+        print(f"   Expected wiring:")
+        
+        # Show expected wiring for this variant
+        if variant == "NEOPIXEL":
+            print(f"   Data: GPIO 18 (pin 12)")
+        elif variant == "DOTSTAR":
+            print(f"   Data: GPIO 10 (pin 19), Clock: GPIO 11 (pin 23)")
+        elif variant == "WS2801":
+            print(f"   Data: GPIO 10 (pin 19), Clock: GPIO 11 (pin 23)")
+        elif variant == "PWM":
+            print(f"   Red: GPIO 18, Green: GPIO 19, Blue: GPIO 20")
+        
+        # Temporarily change LED type
+        LED_TYPE = variant
+        
+        # Try to initialize this LED type
+        test_pixels = initialize_leds()
+        
+        if test_pixels is not None:
+            print(f"   ✅ {variant} initialized successfully")
+            
+            # Test with a simple color sequence
+            try:
+                print(f"   🌈 Testing colors (watch your LEDs)...")
+                test_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+                color_names = ["Red", "Green", "Blue"]
+                
+                for color, name in zip(test_colors, color_names):
+                    print(f"      {name}...", end=" ", flush=True)
+                    fill_pixels(test_pixels, color)
+                    show_pixels(test_pixels)
+                    time.sleep(1.5)
+                    print("done")
+                
+                # Turn off
+                fill_pixels(test_pixels, (0, 0, 0))
+                show_pixels(test_pixels)
+                
+                print(f"   ✅ {variant} test completed successfully!")
+                working_variants.append(variant)
+                
+                # Ask user if they saw the LEDs work
+                response = input(f"   ❓ Did you see the LEDs light up with {variant}? (y/n): ").lower().strip()
+                if response in ['y', 'yes']:
+                    print(f"   🎉 {variant} confirmed working by user!")
+                else:
+                    print(f"   ❌ {variant} not working according to user")
+                    if variant in working_variants:
+                        working_variants.remove(variant)
+                
+            except Exception as e:
+                print(f"   ❌ {variant} test failed: {e}")
+        else:
+            print(f"   ❌ {variant} initialization failed")
+        
+        print()
+    
+    # Restore original configuration
+    LED_TYPE = original_led_type
+    pixels = original_pixels
+    
+    # Report results
+    print("🎯 Test Results Summary")
+    print("=" * 30)
+    
+    if working_variants:
+        print("✅ Working LED variants found:")
+        for variant in working_variants:
+            print(f"   • {variant}")
+        
+        print(f"\n💡 Recommendations:")
+        if len(working_variants) == 1:
+            recommended = working_variants[0]
+            print(f"   Use LED_TYPE = \"{recommended}\" in your configuration")
+        else:
+            print("   Multiple variants work! Choose based on your hardware:")
+            for variant in working_variants:
+                if variant == "NEOPIXEL":
+                    print(f"   • {variant}: Best for WS2812/WS2811 strips")
+                elif variant == "DOTSTAR":
+                    print(f"   • {variant}: Best for APA102/SK9822 strips")
+                elif variant == "WS2801":
+                    print(f"   • {variant}: Best for WS2801 strips")
+                elif variant == "PWM":
+                    print(f"   • {variant}: Best for single RGB LEDs/modules")
+        
+        # Offer to update configuration automatically
+        if len(working_variants) == 1:
+            auto_update = input(f"\n🔧 Auto-update LED_TYPE to \"{working_variants[0]}\"? (y/n): ").lower().strip()
+            if auto_update in ['y', 'yes']:
+                # Update the configuration in the global variable
+                LED_TYPE = working_variants[0]
+                # Re-initialize with the working variant
+                pixels = initialize_leds()
+                print(f"✅ Configuration updated to {LED_TYPE}")
+                return True
+    else:
+        print("❌ No working LED variants found")
+        print("\n🔧 Troubleshooting suggestions:")
+        print("   1. Check your wiring connections")
+        print("   2. Verify power supply (5V for most LEDs)")
+        print("   3. Try running with sudo for GPIO permissions")
+        print("   4. Check if your LED type is supported")
+        print("   5. Measure voltage on data/clock lines")
+        
+    print(f"\n🔄 Current configuration remains: LED_TYPE = \"{LED_TYPE}\"")
+    return len(working_variants) > 0
+
 def main():
     """
     Main function - provides options for different LED operations.
     """
-    print("LED Strip Rainbow Controller")
+    print("🌈 LED Strip Rainbow Controller")
     print("=" * 40)
     print(f"LED Type: {LED_TYPE}")
     print(f"Number of pixels: {NUM_PIXELS}")
@@ -317,21 +445,69 @@ def main():
     print(f"Brightness: {BRIGHTNESS}")
     print()
     
+    # Check if current LED type failed to initialize
     if pixels is None:
-        print("Failed to initialize LEDs. Please check:")
-        print("1. LED type configuration")
-        print("2. Pin connections")
-        print("3. Required libraries are installed")
-        print("4. Hardware permissions (try running with sudo)")
-        return
+        print("❌ Failed to initialize current LED type.")
+        print("\n🔧 Options:")
+        print("1. Run LED variant test to find working type")
+        print("2. Check configuration and wiring manually")
+        print("3. Exit and fix issues")
+        
+        choice = input("\nRun LED variant auto-detection? (y/n): ").lower().strip()
+        if choice in ['y', 'yes']:
+            if test_all_led_variants():
+                print(f"\n✅ Found working LED type: {LED_TYPE}")
+                print("Proceeding with rainbow animation...")
+            else:
+                print("\n❌ No working LED variants found. Please check wiring and try again.")
+                return
+        else:
+            print("\nPlease check:")
+            print("1. LED type configuration")
+            print("2. Pin connections") 
+            print("3. Required libraries are installed")
+            print("4. Hardware permissions (try running with sudo)")
+            return
     
-    # Test connection first
-    if test_connection():
-        print("\nStarting rainbow animation...")
-        time.sleep(2)
-        rainbow_cycle()
-    else:
-        print("Skipping animation due to connection issues.")
+    # If we have working LEDs, ask what to do
+    print("🎮 Choose an option:")
+    print("1. Test current LED connection")
+    print("2. Run rainbow animation")
+    print("3. Test all LED variants (auto-detect)")
+    print("4. Exit")
+    
+    while True:
+        choice = input("\nEnter choice (1-4): ").strip()
+        
+        if choice == "1":
+            print("\n🧪 Testing current LED connection...")
+            if test_connection():
+                print("✅ Connection test passed!")
+            else:
+                print("❌ Connection test failed.")
+            break
+            
+        elif choice == "2":
+            print("\n🌈 Starting rainbow animation...")
+            time.sleep(1)
+            rainbow_cycle()
+            break
+            
+        elif choice == "3":
+            print("\n🔍 Testing all LED variants...")
+            test_all_led_variants()
+            # Ask if user wants to continue with animation
+            continue_choice = input("\nRun rainbow animation with current settings? (y/n): ").lower().strip()
+            if continue_choice in ['y', 'yes']:
+                rainbow_cycle()
+            break
+            
+        elif choice == "4":
+            print("👋 Goodbye!")
+            return
+            
+        else:
+            print("Invalid choice. Please enter 1, 2, 3, or 4.")
 
 if __name__ == "__main__":
     main()
