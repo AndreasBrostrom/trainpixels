@@ -12,7 +12,7 @@ import neopixel
 # Configuration
 NUM_PIXELS = 10      # Number of LEDs in the strip
 LED_PIN = board.D18  # GPIO pin connected to the LED strip (change if needed)
-BRIGHTNESS = 0.3     # LED brightness (0.0 to 1.0)
+BRIGHTNESS = 1.0     # LED brightness (0.0 to 1.0)
 UPDATE_DELAY = 0.05  # Delay between updates in seconds (controls animation speed)
 
 # Initialize the LED strip
