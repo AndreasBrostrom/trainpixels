@@ -104,7 +104,7 @@ def initialize_leds():
         elif LED_TYPE == "WS2801":
             print("  pip install adafruit-circuitpython-ws2801")
         elif LED_TYPE == "PWM":
-            print("  pip install adafruit-circuitpython-pwmio")
+            print("  PWM functionality is included in adafruit-blinka (already installed)")
         return None
         
     except Exception as e:
