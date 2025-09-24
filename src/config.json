@@ -1,8 +1,10 @@
 {
     "NUM_PIXELS": 10,
     "LED_PIN": "D19",
+    "BRIGHTNESS": 0.2,
     "RANDOM_EVENT_CHANCE": 0.2,
-    "color_table": {
+    "NEXT_TRACK_WAIT": 2,
+    "COLOR_TABLE": {
         "red": [
             255,
             0,

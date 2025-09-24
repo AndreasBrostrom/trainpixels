@@ -47,16 +47,20 @@ def fetch_config():
                 config = json.load(f)
                 num_pixels = config.get('NUM_PIXELS')
                 led_pin_name = config.get('LED_PIN', 'D21')
+                brightness = config.get('BRIGHTNESS', 0.5)
                 random_event_chance = config.get('RANDOM_EVENT_CHANCE')
-                color_table = config.get('color_table', {})
-                return num_pixels, led_pin_name, random_event_chance, color_table
+                next_track_wait = config.get('NEXT_TRACK_WAIT')
+                color_table = config.get('COLOR_TABLE', {})
+                return num_pixels, led_pin_name, brightness, random_event_chance, next_track_wait, color_table
         except json.JSONDecodeError:
             print("Error decoding config file.")
     print("Config file not found in $scriptRoot or $HOME/.config/trailpixel.")
     sys.exit(1)
 
 
-NUM_PIXELS, LED_PIN_NAME, RANDOM_EVENT_CHANCE, COLOR_TABLE = fetch_config()
+# GLOBAL VARIABLES
+NUM_PIXELS, LED_PIN_NAME, BRIGHTNESS, RANDOM_EVENT_CHANCE, NEXT_TRACK_WAIT, COLOR_TABLE = fetch_config()
+
 try:
     import board
     import neopixel
@@ -67,14 +71,15 @@ try:
     pixels = neopixel.NeoPixel(
         LED_PIN,
         NUM_PIXELS,
-        brightness=1.0,
+        brightness=BRIGHTNESS,
         auto_write=False)
 except NotImplementedError:
-    print("WARNING: Neopixel library not supported on this platform. Using dummy classes.")
+    print("\033[93mWARNING: Neopixel library not supported on this platform. Using dummy classes.\033[0m")
     from debug import DummyBoard, DummyPixels
     board = DummyBoard()
     LED_PIN = getattr(board, LED_PIN_NAME)
-    pixels = DummyPixels(LED_PIN, NUM_PIXELS, brightness=1.0, auto_write=False)
+    pixels = DummyPixels(LED_PIN, NUM_PIXELS,
+                         brightness=BRIGHTNESS, auto_write=False)
 
 
 # FUNCTIONS
@@ -95,14 +100,32 @@ def led_boot_startup_sequence():
         for i in range(NUM_PIXELS):
             pixel_index = (i * 256 // NUM_PIXELS) + j * 8
             r, g, b = wheel(pixel_index & 255)
-            brightness = 0.5  # You can adjust this or fetch from config
+            brightness = 0.2  # You can adjust this or fetch from config
             pixels[i] = (int(r * brightness),
                          int(g * brightness), int(b * brightness))
         pixels.show()
-        time.sleep(0.05)
+        wait(0.05)
     pixels.fill((0, 0, 0))
     pixels.show()
-    time.sleep(3)
+    wait(3)
+    return 0
+
+
+# HELPER FUNCTIONS
+def exit_gracefully():
+    print("\nLEDs turned off. Goodbye!")
+    pixels.fill((0, 0, 0))
+    pixels.show()
+    sys.exit(0)
+
+
+def wait(time_in_seconds):
+    try:
+        time.sleep(time_in_seconds)
+    except KeyboardInterrupt:
+        exit_gracefully()
+    except Exception as e:
+        print(f"Error occurred while waiting: {e}")
     return 0
 
 
@@ -114,7 +137,6 @@ def get_color(name: str) -> Tuple[int, int, int, int]:
 def event_build_init(queue):
     # FIXME
     # This function would pick a random event from events.d folder
-    print("  Assembling events...")
     for filename in os.listdir(os.path.join(SCRIPT_ROOT, "events.d")):
         if filename.endswith(".json"):
             with open(os.path.join(SCRIPT_ROOT, "events.d", filename), 'r') as f:
@@ -123,7 +145,7 @@ def event_build_init(queue):
     if len(EVENTS) == 0:
         print("  No events found in events.d folder")
     queue.put(EVENTS)
-    print(f"  {len(EVENTS)} events have been assembled")
+    print(f"  {len(EVENTS)} events have been detectred and added")
 
 
 def event_picker() -> dict:
@@ -144,22 +166,20 @@ def event_runner(event) -> int:
                 pixels[led_index] = (int(r * brightness),
                                      int(g * brightness), int(b * brightness))
                 pixels.show()
-                time.sleep(duration)
+                wait(duration)
 
                 # Turn off LED
                 r, g, b, brightness = get_color("off")
                 pixels[led_index] = (int(r * brightness),
                                      int(g * brightness), int(b * brightness))
                 pixels.show()
-                time.sleep(duration)
+                wait(duration)
             return 0
     return 2  # No action taken
 
 
 def track_build_init(queue):
     # This function build all the tracks from json files from tracks.d folder
-    print("  Assembling tracks...")
-
     for filename in os.listdir(os.path.join(SCRIPT_ROOT, "tracks.d")):
         if filename.endswith(".json"):
             with open(os.path.join(SCRIPT_ROOT, "tracks.d", filename), 'r') as f:
@@ -170,7 +190,7 @@ def track_build_init(queue):
         sys.exit(1)
 
     queue.put(TRACKS)
-    print(f"  {len(TRACKS)} tracks have been assembled")
+    print(f"  {len(TRACKS)} tracks have been detected and added")
     return 0
 
 
@@ -201,12 +221,13 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
             pixels[i] = (int(r * brightness),
                          int(g * brightness), int(b * brightness))
             pixels.show()
-        time.sleep(3)
+        wait(track_speed * 0.5)
 
         # animate path
         for idx, i in enumerate(track_led_path):
             r, g, b, brightness = get_color("red")
-            print(f"  Setting LED {i} to red")
+            print(
+                f"  Traveling to LED {i} {f'disabling {track_led_path[idx - 1]}' if idx > 0 else ''}")
             pixels[i] = (int(r * brightness),
                          int(g * brightness), int(b * brightness))
             pixels.show()
@@ -231,10 +252,10 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
                         target=event_runner, args=(event,))
                     p.start()
                     pixels.show()
-            time.sleep(track_speed)
+            wait(track_speed)
 
         # turn off path
-        print("  Turning off path")
+        print("  Track completed resetting")
         r, g, b, brightness = get_color("off")
         for i in track_led_path:
             pixels[i] = (int(r * brightness),
@@ -242,53 +263,59 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
         pixels[track_led_indicator] = (int(r * brightness),
                                        int(g * brightness), int(b * brightness))
         pixels.show()
-        time.sleep(2)
+        wait(NEXT_TRACK_WAIT)
         return 0
 
     except KeyboardInterrupt:
-        print("\nLEDs turned off. Goodbye!")
-        pixels.fill((0, 0, 0))
-        pixels.show()
-        sys.exit(0)
+        exit_gracefully()
 
 
 def main():
     global TRACKS
     global EVENTS
     try:
-        print("Starting TrainPixels")
+        print("\033[1mStarting TrainPixels\033[0m")
         print(f"  Pixels: {NUM_PIXELS}")
         print(f"  Pin: {LED_PIN_NAME}")
         print("")
 
-        # INIT
+        # INIT (start both processes before boot animation)
         print("Initializing Tracks...")
-        queue = multiprocessing.Queue()
-        p = multiprocessing.Process(target=track_build_init, args=(queue,))
-        p.start()
-        p.join()
-        if p.exitcode != 0:
-            sys.exit(1)
-        TRACKS = queue.get()
+        track_queue = multiprocessing.Queue()
+        event_queue = multiprocessing.Queue()
+        track_proc = multiprocessing.Process(
+            target=track_build_init, args=(track_queue,))
+        event_proc = multiprocessing.Process(
+            target=event_build_init, args=(event_queue,))
+        track_proc.start()
+        event_proc.start()
 
-        print("Initializing Events...")
-        queue = multiprocessing.Queue()
-        p = multiprocessing.Process(target=event_build_init, args=(queue,))
-        p.start()
-        p.join()
-        if p.exitcode != 0:
-            sys.exit(1)
-        EVENTS = queue.get()
-
+        # Run boot animation
         led_boot_startup_sequence()
+
+        # Wait for both processes to finish if not done
+        if track_proc.is_alive():
+            track_proc.join()
+        if event_proc.is_alive():
+            event_proc.join()
+
+        if track_proc.exitcode != 0:
+            print("Track process failed. Exiting.")
+            sys.exit(1)
+        if event_proc.exitcode != 0:
+            print("Event process failed. Exiting.")
+            sys.exit(1)
+
+        TRACKS = track_queue.get()
+        EVENTS = event_queue.get()
 
         print("Initialization complete.")
 
+        print("\nStarting main track loop")
         # MAIN LOOP
-        print("")
         while True:
-            time.sleep(2)
-            print("Picking track")
+            wait(2)
+            print("\nPicking track")
             track = track_pick_tracker()
 
             print(f"  Selected track: {track['name']} ({track['id']})")
@@ -298,10 +325,7 @@ def main():
     except NotImplementedError:
         print("Functionality not yet implemented.")
     except KeyboardInterrupt:
-        print("\nLEDs turned off. Goodbye!")
-        pixels.fill((0, 0, 0))
-        pixels.show()
-        sys.exit(0)
+        exit_gracefully()
 
 
 if __name__ == "__main__":
