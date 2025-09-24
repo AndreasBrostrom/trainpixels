@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-from typing import Tuple
-import multiprocessing
-import random
-import time
-import json
-import sys
 import os
+import sys
+import json
+import time
+import random
+import multiprocessing
+from typing import Tuple
+
+PIXEL_LOCK = multiprocessing.Lock()
 
 """
 status codes
@@ -54,7 +56,7 @@ def fetch_config():
                 return num_pixels, led_pin_name, brightness, random_event_chance, next_track_wait, color_table
         except json.JSONDecodeError:
             print("Error decoding config file.")
-    print("Config file not found in $scriptRoot or $HOME/.config/trailpixel.")
+    print("Config file not found in ScriptRoot or ~/.config/trailpixel/.")
     sys.exit(1)
 
 
@@ -212,15 +214,17 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
 
         # turn on track indicator
         r, g, b, brightness = get_color("green")
-        pixels[track_led_indicator] = (int(r * brightness),
-                                       int(g * brightness), int(b * brightness))
-        pixels.show()
+        with PIXEL_LOCK:
+            pixels[track_led_indicator] = (int(r * brightness),
+                                           int(g * brightness), int(b * brightness))
+            pixels.show()
 
         for i in track_led_path:
             r, g, b, brightness = get_color("white")
-            pixels[i] = (int(r * brightness),
-                         int(g * brightness), int(b * brightness))
-            pixels.show()
+            with PIXEL_LOCK:
+                pixels[i] = (int(r * brightness),
+                             int(g * brightness), int(b * brightness))
+                pixels.show()
         wait(track_speed * 0.5)
 
         # animate path
@@ -228,17 +232,19 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
             r, g, b, brightness = get_color("red")
             print(
                 f"  Traveling to LED {i} {f'disabling {track_led_path[idx - 1]}' if idx > 0 else ''}")
-            pixels[i] = (int(r * brightness),
-                         int(g * brightness), int(b * brightness))
-            pixels.show()
+            with PIXEL_LOCK:
+                pixels[i] = (int(r * brightness),
+                             int(g * brightness), int(b * brightness))
+                pixels.show()
 
             # Turn off previous LED in path
             if idx > 0:
                 prev = track_led_path[idx - 1]
                 r_off, g_off, b_off, brightness_off = get_color("off")
-                pixels[prev] = (int(r_off * brightness_off),
-                                int(g_off * brightness_off), int(b_off * brightness_off))
-                pixels.show()
+                with PIXEL_LOCK:
+                    pixels[prev] = (int(r_off * brightness_off),
+                                    int(g_off * brightness_off), int(b_off * brightness_off))
+                    pixels.show()
 
             # add possible event
             if len(EVENTS) > 0:
@@ -257,17 +263,20 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
         # turn off path
         print("  Track completed resetting")
         r, g, b, brightness = get_color("off")
-        for i in track_led_path:
-            pixels[i] = (int(r * brightness),
-                         int(g * brightness), int(b * brightness))
-        pixels[track_led_indicator] = (int(r * brightness),
-                                       int(g * brightness), int(b * brightness))
-        pixels.show()
+        with PIXEL_LOCK:
+            for i in track_led_path:
+                pixels[i] = (int(r * brightness),
+                             int(g * brightness), int(b * brightness))
+            pixels[track_led_indicator] = (int(r * brightness),
+                                           int(g * brightness), int(b * brightness))
+            pixels.show()
         wait(NEXT_TRACK_WAIT)
         return 0
 
     except KeyboardInterrupt:
         exit_gracefully()
+
+    return 0
 
 
 def main():
@@ -280,7 +289,7 @@ def main():
         print("")
 
         # INIT (start both processes before boot animation)
-        print("Initializing Tracks...")
+        print("Initializing...")
         track_queue = multiprocessing.Queue()
         event_queue = multiprocessing.Queue()
         track_proc = multiprocessing.Process(
@@ -315,7 +324,7 @@ def main():
         # MAIN LOOP
         while True:
             wait(2)
-            print("\nPicking track")
+            print("\n\033[1mPicking track\033[0m")
             track = track_pick_tracker()
 
             print(f"  Selected track: {track['name']} ({track['id']})")
