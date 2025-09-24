@@ -1,5 +1,5 @@
 {
     "NUM_PIXELS": 10,
-    "LED_PIN": "D21",
+    "LED_PIN": "D19",
     "RANDOM_EVENT_CHANCE": 0.2
 }

@@ -24,7 +24,7 @@ COLOR_TABLE = {
     # Define colors with RGBA values
     "red": (255, 0, 0, 0.5),
     "green": (0, 255, 0, 0.5),
-    "white": (255, 255, 255, 0.5),
+    "white": (255, 255, 255, 0.2),
     "blue": (0, 0, 255, 0.5),
     "yellow": (255, 255, 0, 0.5),
     "purple": (128, 0, 128, 0.5),
@@ -213,6 +213,7 @@ def start_path_animation(track_led_path: list, track_led_indicator: int) -> int:
             print(f"  Setting LED {i} to red")
             pixels[i] = (int(r * brightness),
                          int(g * brightness), int(b * brightness))
+            pixels.show()
 
             # add possible event
             if (random.randint(0, 10) < RANDOM_EVENT_CHANCE):
@@ -220,7 +221,6 @@ def start_path_animation(track_led_path: list, track_led_indicator: int) -> int:
                 event = event_picker()
                 p = multiprocessing.Process(target=event_runner, args=(event,))
                 p.start()
-
                 pixels.show()
             time.sleep(3)
 
