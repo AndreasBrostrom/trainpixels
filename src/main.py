@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Tuple
 import multiprocessing
 import random
 import time
@@ -20,41 +21,20 @@ status codes
 9 - unknown error
 """
 
-COLOR_TABLE = {
-    # Define colors with RGBA values
-    "red": (255, 0, 0, 0.5),
-    "green": (0, 255, 0, 0.5),
-    "white": (255, 255, 255, 0.2),
-    "blue": (0, 0, 255, 0.5),
-    "yellow": (255, 255, 0, 0.5),
-    "purple": (128, 0, 128, 0.5),
-    "off": (0, 0, 0, 0.5)
-}
-
-TEST_EVENT = {
-    "id": "event_01",
-    "name": "blink_led_9",
-    "events": [
-        {
-            "led": 9,
-            "blink": True,
-            "duration": 5,
-            "color": "blue"
-        }
-    ]
-}
-global TRACKS
-TRACKS = []
-
 random.seed(time.time())
 SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-# Get configs
+
+global TRACKS
+global EVENTS
+TRACKS = []
+EVENTS = []
 
 
+# HANDLE CONFIG
 def fetch_config():
     home_config = os.path.join(os.path.expanduser(
-        "~"), ".config", "trailpixel", "config.json")
+        "~"), ".config", "trailpixels", "config.json")
     local_config = os.path.join(SCRIPT_ROOT, "config.json")
     config_path = None
     if os.path.exists(local_config):
@@ -68,15 +48,15 @@ def fetch_config():
                 num_pixels = config.get('NUM_PIXELS')
                 led_pin_name = config.get('LED_PIN', 'D21')
                 random_event_chance = config.get('RANDOM_EVENT_CHANCE')
-                return num_pixels, led_pin_name, random_event_chance
+                color_table = config.get('color_table', {})
+                return num_pixels, led_pin_name, random_event_chance, color_table
         except json.JSONDecodeError:
             print("Error decoding config file.")
-            sys.exit(1)
     print("Config file not found in $scriptRoot or $HOME/.config/trailpixel.")
     sys.exit(1)
 
 
-NUM_PIXELS, LED_PIN_NAME, RANDOM_EVENT_CHANCE = fetch_config()
+NUM_PIXELS, LED_PIN_NAME, RANDOM_EVENT_CHANCE, COLOR_TABLE = fetch_config()
 try:
     import board
     import neopixel
@@ -98,7 +78,6 @@ except NotImplementedError:
 
 
 # FUNCTIONS
-
 def led_boot_startup_sequence():
     def wheel(pos):
         # Generate rainbow colors across 0-255 positions.
@@ -127,64 +106,79 @@ def led_boot_startup_sequence():
     return 0
 
 
-def get_color(name):
-    return COLOR_TABLE.get(name, (0, 0, 0, 0))  # Default to off if not found
+def get_color(name: str) -> Tuple[int, int, int, int]:
+    # Default to off if not found
+    return COLOR_TABLE.get(name, (0, 0, 0, 0))
 
 
-def event_picker():
+def event_build_init(queue):
+    # FIXME
     # This function would pick a random event from events.d folder
-    return TEST_EVENT
+    print("  Assembling events...")
+    for filename in os.listdir(os.path.join(SCRIPT_ROOT, "events.d")):
+        if filename.endswith(".json"):
+            with open(os.path.join(SCRIPT_ROOT, "events.d", filename), 'r') as f:
+                event = json.load(f)
+                EVENTS.append(event)
+    if len(EVENTS) == 0:
+        print("  No events found in events.d folder")
+    queue.put(EVENTS)
+    print(f"  {len(EVENTS)} events have been assembled")
+
+
+def event_picker() -> dict:
+    return EVENTS[random.randint(0, len(EVENTS) - 1)]
 
 
 def event_runner(event) -> int:
     for e in event.get('events', []):
+        # Blinking LED
         if e.get('blink', False):
             led_index = e.get('led')
             color_name = e.get('color')
             duration = e.get('duration')
 
             r, g, b, brightness = get_color(color_name)
-            pixels[led_index] = (int(r * brightness),
-                                 int(g * brightness), int(b * brightness))
-            pixels.show()
-            time.sleep(duration)
+            for _ in range(e.get('repeat', 1)):
+                # Turn on LED
+                pixels[led_index] = (int(r * brightness),
+                                     int(g * brightness), int(b * brightness))
+                pixels.show()
+                time.sleep(duration)
 
-            # Turn off LED
-            r, g, b, brightness = get_color("off")
-            pixels[led_index] = (int(r * brightness),
-                                 int(g * brightness), int(b * brightness))
-            pixels.show()
+                # Turn off LED
+                r, g, b, brightness = get_color("off")
+                pixels[led_index] = (int(r * brightness),
+                                     int(g * brightness), int(b * brightness))
+                pixels.show()
+                time.sleep(duration)
             return 0
     return 2  # No action taken
 
 
-def track_build_init():
+def track_build_init(queue):
     # This function build all the tracks from json files from tracks.d folder
-    print("Assembling tracks..")
+    print("  Assembling tracks...")
 
-    # ADD FUNCTION ASSEMBLY HERE
     for filename in os.listdir(os.path.join(SCRIPT_ROOT, "tracks.d")):
         if filename.endswith(".json"):
             with open(os.path.join(SCRIPT_ROOT, "tracks.d", filename), 'r') as f:
                 track = json.load(f)
                 TRACKS.append(track)
     if len(TRACKS) == 0:
-        print("No tracks found in tracks.d folder exiting.")
+        print("  No tracks found in tracks.d folder exiting")
         sys.exit(1)
 
-    print(f"  {len(TRACKS)} tracks have been assembled.")
+    queue.put(TRACKS)
+    print(f"  {len(TRACKS)} tracks have been assembled")
     return 0
 
 
 def track_pick_tracker() -> dict:
-    # pick a random track from TRACKS
-    if TRACKS is None or len(TRACKS) == 0:
-        print("No tracks can be selected from tracks.d folder exiting.")
-        sys.exit(1)
     return TRACKS[random.randint(0, len(TRACKS) - 1)]
 
 
-def start_path_animation(track_led_path: list, track_led_indicator: int) -> int:
+def start_path_animation(track_led_path: list, track_led_indicator: int, track_speed: int) -> int:
     try:
         if not track_led_path:
             print("No LED path provided.")
@@ -193,9 +187,11 @@ def start_path_animation(track_led_path: list, track_led_indicator: int) -> int:
         # initialize path led path
         print(f"  Path:      {track_led_path}")
         print(f"  Indicator: {track_led_indicator}")
+        print(f"  Speed:     {track_speed}")
+        print(f"  ---")
 
         # turn on track indicator
-        r, g, b, brightness = get_color("yellow")
+        r, g, b, brightness = get_color("green")
         pixels[track_led_indicator] = (int(r * brightness),
                                        int(g * brightness), int(b * brightness))
         pixels.show()
@@ -208,21 +204,34 @@ def start_path_animation(track_led_path: list, track_led_indicator: int) -> int:
         time.sleep(3)
 
         # animate path
-        for i in track_led_path:
+        for idx, i in enumerate(track_led_path):
             r, g, b, brightness = get_color("red")
             print(f"  Setting LED {i} to red")
             pixels[i] = (int(r * brightness),
                          int(g * brightness), int(b * brightness))
             pixels.show()
 
-            # add possible event
-            if (random.randint(0, 10) < RANDOM_EVENT_CHANCE):
-                print("  Random event triggered...")
-                event = event_picker()
-                p = multiprocessing.Process(target=event_runner, args=(event,))
-                p.start()
+            # Turn off previous LED in path
+            if idx > 0:
+                prev = track_led_path[idx - 1]
+                r_off, g_off, b_off, brightness_off = get_color("off")
+                pixels[prev] = (int(r_off * brightness_off),
+                                int(g_off * brightness_off), int(b_off * brightness_off))
                 pixels.show()
-            time.sleep(3)
+
+            # add possible event
+            if len(EVENTS) > 0:
+                if (random.randint(0, 10) < RANDOM_EVENT_CHANCE):
+                    print("    ---")
+                    print("    Triggering random event")
+                    event = event_picker()
+                    print(f"    Event:     {event['name']} ({event['id']})")
+                    print("    ---")
+                    p = multiprocessing.Process(
+                        target=event_runner, args=(event,))
+                    p.start()
+                    pixels.show()
+            time.sleep(track_speed)
 
         # turn off path
         print("  Turning off path")
@@ -235,6 +244,7 @@ def start_path_animation(track_led_path: list, track_led_indicator: int) -> int:
         pixels.show()
         time.sleep(2)
         return 0
+
     except KeyboardInterrupt:
         print("\nLEDs turned off. Goodbye!")
         pixels.fill((0, 0, 0))
@@ -243,23 +253,47 @@ def start_path_animation(track_led_path: list, track_led_indicator: int) -> int:
 
 
 def main():
+    global TRACKS
+    global EVENTS
     try:
         print("Starting TrainPixels")
         print(f"  Pixels: {NUM_PIXELS}")
         print(f"  Pin: {LED_PIN_NAME}")
         print("")
 
-        led_boot_startup_sequence()
-        track_build_init()
+        # INIT
+        print("Initializing Tracks...")
+        queue = multiprocessing.Queue()
+        p = multiprocessing.Process(target=track_build_init, args=(queue,))
+        p.start()
+        p.join()
+        if p.exitcode != 0:
+            sys.exit(1)
+        TRACKS = queue.get()
 
+        print("Initializing Events...")
+        queue = multiprocessing.Queue()
+        p = multiprocessing.Process(target=event_build_init, args=(queue,))
+        p.start()
+        p.join()
+        if p.exitcode != 0:
+            sys.exit(1)
+        EVENTS = queue.get()
+
+        led_boot_startup_sequence()
+
+        print("Initialization complete.")
+
+        # MAIN LOOP
+        print("")
         while True:
             time.sleep(2)
             print("Picking track")
             track = track_pick_tracker()
 
-            print(f"  Selected track: {track['name']}")
+            print(f"  Selected track: {track['name']} ({track['id']})")
             start_path_animation(
-                track["led_path"], track["led_path_indicator"])
+                track["led_path"], track["led_path_indicator"], track["speed"])
 
     except NotImplementedError:
         print("Functionality not yet implemented.")

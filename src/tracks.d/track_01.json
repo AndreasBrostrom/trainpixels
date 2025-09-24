@@ -11,5 +11,6 @@
         6,
         7
     ],
-    "led_path_indicator": 8
+    "led_path_indicator": 8,
+    "speed": 3
 }
