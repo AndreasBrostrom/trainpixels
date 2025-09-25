@@ -7,7 +7,6 @@ import random
 import multiprocessing
 from typing import Tuple
 
-PIXEL_LOCK = multiprocessing.Lock()
 
 """
 status codes
@@ -85,9 +84,23 @@ except NotImplementedError:
 
 
 # FUNCTIONS
-def led_boot_startup_sequence():
+def boot_startup_sequence():
+    global TRACKS
+    global EVENTS
+    print("Initializing...")
+    track_queue = multiprocessing.Queue()
+    event_queue = multiprocessing.Queue()
+    track_proc = multiprocessing.Process(
+        target=track_build_init, args=(track_queue,))
+    event_proc = multiprocessing.Process(
+        target=event_build_init, args=(event_queue,))
+    track_proc.start()
+    event_proc.start()
+
+    # Run boot animation until both processes are done
+    boot_anim_frame = 0
+
     def wheel(pos):
-        # Generate rainbow colors across 0-255 positions.
         if pos < 85:
             return (int(pos * 3), int(255 - pos * 3), 0)
         elif pos < 170:
@@ -96,21 +109,35 @@ def led_boot_startup_sequence():
         else:
             pos -= 170
             return (0, int(pos * 3), int(255 - pos * 3))
-
-    # Rainbow animation across all LEDs
-    for j in range(32):  # Number of animation frames
+    while track_proc.is_alive() or event_proc.is_alive():
         for i in range(NUM_PIXELS):
-            pixel_index = (i * 256 // NUM_PIXELS) + j * 8
+            pixel_index = (i * 256 // NUM_PIXELS) + boot_anim_frame * 8
             r, g, b = wheel(pixel_index & 255)
-            brightness = 0.2  # You can adjust this or fetch from config
+            brightness = 0.2
             pixels[i] = (int(r * brightness),
                          int(g * brightness), int(b * brightness))
         pixels.show()
+        boot_anim_frame += 1
         wait(0.05)
+    # Ensure both processes are joined
+    track_proc.join()
+    event_proc.join()
+
+    if track_proc.exitcode != 0:
+        print("Track process failed. Exiting.")
+        sys.exit(1)
+    if event_proc.exitcode != 0:
+        print("Event process failed. Exiting.")
+        sys.exit(1)
+
+    TRACKS = track_queue.get()
+    EVENTS = event_queue.get()
+
+    # Turn off LEDs after boot animation
     pixels.fill((0, 0, 0))
     pixels.show()
-    wait(3)
-    return 0
+    wait(1)
+    print("Initialization complete.")
 
 
 # HELPER FUNCTIONS
@@ -214,17 +241,15 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
 
         # turn on track indicator
         r, g, b, brightness = get_color("green")
-        with PIXEL_LOCK:
-            pixels[track_led_indicator] = (int(r * brightness),
-                                           int(g * brightness), int(b * brightness))
-            pixels.show()
+        pixels[track_led_indicator] = (int(r * brightness),
+                                       int(g * brightness), int(b * brightness))
+        pixels.show()
 
         for i in track_led_path:
             r, g, b, brightness = get_color("white")
-            with PIXEL_LOCK:
-                pixels[i] = (int(r * brightness),
-                             int(g * brightness), int(b * brightness))
-                pixels.show()
+            pixels[i] = (int(r * brightness),
+                         int(g * brightness), int(b * brightness))
+            pixels.show()
         wait(track_speed * 0.5)
 
         # animate path
@@ -232,44 +257,42 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
             r, g, b, brightness = get_color("red")
             print(
                 f"  Traveling to LED {i} {f'disabling {track_led_path[idx - 1]}' if idx > 0 else ''}")
-            with PIXEL_LOCK:
-                pixels[i] = (int(r * brightness),
-                             int(g * brightness), int(b * brightness))
-                pixels.show()
+            pixels[i] = (int(r * brightness),
+                         int(g * brightness), int(b * brightness))
+            pixels.show()
 
             # Turn off previous LED in path
             if idx > 0:
                 prev = track_led_path[idx - 1]
                 r_off, g_off, b_off, brightness_off = get_color("off")
-                with PIXEL_LOCK:
-                    pixels[prev] = (int(r_off * brightness_off),
-                                    int(g_off * brightness_off), int(b_off * brightness_off))
-                    pixels.show()
+                pixels[prev] = (int(r_off * brightness_off),
+                                int(g_off * brightness_off), int(b_off * brightness_off))
+                pixels.show()
 
+            # Temporarily disabled
             # add possible event
-            if len(EVENTS) > 0:
-                if (random.randint(0, 10) < RANDOM_EVENT_CHANCE):
-                    print("    ---")
-                    print("    Triggering random event")
-                    event = event_picker()
-                    print(f"    Event:     {event['name']} ({event['id']})")
-                    print("    ---")
-                    p = multiprocessing.Process(
-                        target=event_runner, args=(event,))
-                    p.start()
-                    pixels.show()
-            wait(track_speed)
+            # if len(EVENTS) > 0:
+            #    if (random.randint(0, 10) < RANDOM_EVENT_CHANCE):
+            #        print("    ---")
+            #        print("    Triggering random event")
+            #        event = event_picker()
+            #        print(f"    Event:     {event['name']} ({event['id']})")
+            #        print("    ---")
+            #        p = multiprocessing.Process(
+            #            target=event_runner, args=(event,))
+            #        p.start()
+            #        pixels.show()
+            # wait(track_speed)
 
         # turn off path
         print("  Track completed resetting")
         r, g, b, brightness = get_color("off")
-        with PIXEL_LOCK:
-            for i in track_led_path:
-                pixels[i] = (int(r * brightness),
-                             int(g * brightness), int(b * brightness))
-            pixels[track_led_indicator] = (int(r * brightness),
-                                           int(g * brightness), int(b * brightness))
-            pixels.show()
+        for i in track_led_path:
+            pixels[i] = (int(r * brightness),
+                         int(g * brightness), int(b * brightness))
+        pixels[track_led_indicator] = (int(r * brightness),
+                                       int(g * brightness), int(b * brightness))
+        pixels.show()
         wait(NEXT_TRACK_WAIT)
         return 0
 
@@ -280,45 +303,13 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
 
 
 def main():
-    global TRACKS
-    global EVENTS
     try:
         print("\033[1mStarting TrainPixels\033[0m")
         print(f"  Pixels: {NUM_PIXELS}")
-        print(f"  Pin: {LED_PIN_NAME}")
+        print(f"  Pin:    {LED_PIN_NAME}")
         print("")
 
-        # INIT (start both processes before boot animation)
-        print("Initializing...")
-        track_queue = multiprocessing.Queue()
-        event_queue = multiprocessing.Queue()
-        track_proc = multiprocessing.Process(
-            target=track_build_init, args=(track_queue,))
-        event_proc = multiprocessing.Process(
-            target=event_build_init, args=(event_queue,))
-        track_proc.start()
-        event_proc.start()
-
-        # Run boot animation
-        led_boot_startup_sequence()
-
-        # Wait for both processes to finish if not done
-        if track_proc.is_alive():
-            track_proc.join()
-        if event_proc.is_alive():
-            event_proc.join()
-
-        if track_proc.exitcode != 0:
-            print("Track process failed. Exiting.")
-            sys.exit(1)
-        if event_proc.exitcode != 0:
-            print("Event process failed. Exiting.")
-            sys.exit(1)
-
-        TRACKS = track_queue.get()
-        EVENTS = event_queue.get()
-
-        print("Initialization complete.")
+        boot_startup_sequence()
 
         print("\nStarting main track loop")
         # MAIN LOOP
