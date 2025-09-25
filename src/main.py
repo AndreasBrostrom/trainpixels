@@ -74,7 +74,7 @@ try:
         NUM_PIXELS,
         brightness=BRIGHTNESS,
         auto_write=False)
-except NotImplementedError:
+except:
     print("\033[93mWARNING: Neopixel library not supported on this platform. Using dummy classes.\033[0m")
     from debug import DummyBoard, DummyPixels
     board = DummyBoard()
