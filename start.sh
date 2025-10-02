@@ -3,6 +3,8 @@
 # Remove virtual environment first
 if [[ "$1" == "-r" ]]; then
     rm -rf venv
+    shift  # Remove -r from arguments
+
 fi
 
 # Start
@@ -14,4 +16,4 @@ else
     source venv/bin/activate
 fi
 
-python3 src/main.py
+python3 src/main.py "$@"
