@@ -1,7 +1,7 @@
 {
     "id": "track_02",
     "name": "Sample Track 2",
-    "led_path": [
+    "track_path": [
         7,
         6,
         5,
@@ -11,6 +11,5 @@
         1,
         0
     ],
-    "led_path_indicator": 8,
     "speed": 4
 }

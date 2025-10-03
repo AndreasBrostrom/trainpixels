@@ -3,6 +3,7 @@
     "LED_PIN": "D19",
     "BRIGHTNESS": 0.2,
     "RANDOM_EVENT_CHANCE": 0.2,
+    "TRACK_SPEED_MODIFIER": 1.0,
     "NEXT_TRACK_WAIT": 2,
     "COLOR_TABLE": {
         "red": [
