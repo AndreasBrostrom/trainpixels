@@ -77,8 +77,8 @@ def fetch_config() -> ConfigType:
                     color_table=color_table
                 )
         except json.JSONDecodeError:
-            print("Error decoding config file.")
-    print("Config file not found in ScriptRoot or ~/.config/trailpixel/.")
+            print("\033[91mERROR: Decoding config file.\033[0m")
+    print("\033[91mERROR: Config file not found in ScriptRoot or ~/.config/trailpixel/.\033[0m")
     sys.exit(1)
 
 
@@ -100,10 +100,10 @@ try:
     import neopixel
 
     if UTIL_PIN == 0 or TRACK_PIN == 0:
-        print("Error: TRACK_PIN and UTIL_PIN must be set in config file.")
+        print("\033[91mERROR: TRACK_PIN and UTIL_PIN must be set in config file.\033[0m")
         sys.exit(1)
     if TRACK_PIXEL_LENGTH == 0 or UTIL_PIXEL_LENGTH == 0:
-        print("Error: TRACK_PIXEL_LENGTH and UTIL_PIXEL_LENGTH must be set in config file.")
+        print("\033[91mERROR: TRACK_PIXEL_LENGTH and UTIL_PIXEL_LENGTH must be set in config file.\033[0m")
         sys.exit(1)
 
     # GLOBAL LED VARIABLES
@@ -204,6 +204,34 @@ def boot_startup_sequence():
         boot_anim_frame += 1
         wait(0.05)
 
+    # Check for Track and Util id conflicts
+    print("  Validating tracks and utils configuration...")
+    track_ids = [track.get('id') for track in TRACKS]
+    if len(track_ids) != len(set(track_ids)):
+        # Find and report the duplicate track IDs
+        seen_ids = set()
+        duplicate_ids = set()
+        for track_id in track_ids:
+            if track_id in seen_ids:
+                duplicate_ids.add(track_id)
+            else:
+                seen_ids.add(track_id)
+        print(f"  \033[91mERROR: Duplicate track IDs found in tracks.d folder: {', '.join(duplicate_ids)}\033[0m")
+        sys.exit(1)
+    util_ids = [util['id'] for util in INIT_UTILS + TRIGGER_UTILS + RANDOM_UTILS if 'id' in util]
+    if len(util_ids) != len(set(util_ids)):
+        # Find and report the duplicate util IDs
+        seen_ids = set()
+        duplicate_ids = set()
+        for util_id in util_ids:
+            if util_id in seen_ids:
+                duplicate_ids.add(util_id)
+            else:
+                seen_ids.add(util_id)
+        print(f"  \033[91mERROR: Duplicate util IDs found in utils.d folder: {', '.join(duplicate_ids)}\033[0m")
+        sys.exit(1)
+    print("  Validation completed.")
+
     # Turn off LEDs after boot animation
     t_pixels.fill((0, 0, 0))
     t_pixels.show()
@@ -215,15 +243,13 @@ def boot_startup_sequence():
 
 def track_build_init(queue) -> None:
     # This function build all the tracks from json files from tracks.d folder
-    print("  Loading tracks...")
     for filename in os.listdir(os.path.join(SCRIPT_ROOT, "tracks.d")):
         if filename.endswith(".json"):
             with open(os.path.join(SCRIPT_ROOT, "tracks.d", filename), 'r') as f:
                 track = json.load(f)
-                print(f"    -> Found track: {track.get('name', 'unnamed')} [{track.get('id', 'noid')}]")
                 TRACKS.append(track)
     if len(TRACKS) == 0:
-        print("  No tracks found in tracks.d folder exiting")
+        print("  \033[91mWARNING: No tracks found in tracks.d folder exiting\033[0m")
         sys.exit(1)
 
     queue.put(TRACKS)
@@ -233,7 +259,6 @@ def util_build_init(queue) -> None:
     try:
         all_utils = []
         
-        print("  Loading utils...")
         # First, load all utils
         for filename in os.listdir(os.path.join(SCRIPT_ROOT, "utils.d")):
             if filename.endswith(".json"):
@@ -242,7 +267,7 @@ def util_build_init(queue) -> None:
                     all_utils.append(util)
 
         if len(all_utils) == 0:
-            print("  No utils found in utils.d folder")
+            print("  \033[91mWARNING: No utils found in utils.d folder\033[0m")
             queue.put(([], [], []))  # Return empty lists for all three categories
             return
 
@@ -285,7 +310,7 @@ def util_build_init(queue) -> None:
         queue.put((init_utils, trigger_utils, random_utils))
 
     except Exception as e:
-        print(f"Error loading utils: {e}")
+        print(f"\033[91mERROR: Loading utils: {e}\033[0m")
         queue.put(([], [], []))  # Return empty lists for all three categories on error
 
 
@@ -300,12 +325,10 @@ def execute_init_utils():
         print(f"\033[1mExecuting {len(INIT_UTILS)} initialization utility functions...\033[0m")
 
         for i, init_event in enumerate(INIT_UTILS):
-            print(
-                f"  Executing: {init_event.get('name', init_event.get('id', 'unnamed'))}")
 
             # Execute the utility synchronously and wait for completion
             result = run_util_by_id(init_event.get('id'))
-            print(f"    Init process {i+1}/{len(INIT_UTILS)} completed")
+            print(f"  Init process {i+1}/{len(INIT_UTILS)} completed")
 
         print("All initialization utils completed.")
     else:
@@ -322,7 +345,7 @@ def set_t_led(led_index: int, color_name: str, show: bool = False) -> int:
             t_pixels.show()
         return 0
     except Exception as e:
-        print(f"Error setting T LED {led_index}: {e}")
+        print(f"\033[91mERROR: Setting Track LED {led_index}: {e}\033[0m")
         return 1
 
 
@@ -336,7 +359,7 @@ def set_u_led(led_index: int, color_name: str, show: bool = False) -> int:
             u_pixels.show()
         return 0
     except Exception as e:
-        print(f"Error setting U LED {led_index}: {e}")
+        print(f"\033[91mERROR: Setting Utility LED {led_index}: {e}\033[0m")
         return 1
 
 
@@ -357,7 +380,7 @@ def wait(time_in_seconds):
     except KeyboardInterrupt:
         exit_gracefully()
     except Exception as e:
-        print(f"Error occurred while waiting: {e}")
+        print(f"\033[91mERROR: Error occurred while waiting: {e}\033[0m")
     return 0
 
 
@@ -383,15 +406,15 @@ def run_util_by_id(util_id: str) -> int:
         # Find the utility by ID
         util = get_util_from_id(util_id)
         if not util:
-            print(f"    Warning: Utility '{util_id}' not found")
+            print(f"  \033[93mWARNING: Utility '{util_id}' not found\033[0m")
             return 1
 
-        print(f"    Running utility: {util.get('name', util_id)} [{util_id}]")
+        print(f"  Running utility: {util.get('name', util_id)} [{util_id}]")
         
         # Get the utils list from the utility
         utils_list = util.get('utils', [])
         if not utils_list:
-            print(f"    Warning: Utility '{util_id}' has no utils to execute")
+            print(f"  \033[93mWARNING: Utility '{util_id}' has no utils to execute\033[0m")
             return 2
 
         # Collect all LED changes and wait times
@@ -404,16 +427,16 @@ def run_util_by_id(util_id: str) -> int:
             color_name = util_item.get('color')
             
             if led_index is None or color_name is None:
-                print(f"      Warning: Util item missing 'led' or 'color' property")
+                print(f"      \033[93mWARNING: Util item missing 'led' or 'color' property\033[0m")
                 continue
             
             # Apply the LED change (but don't show yet)
             result = set_u_led(led_index, color_name, show=False)
             if result == 0:
-                print(f"      Set util LED {led_index} to {color_name}")
+                print(f"    \033[2mSet util LED {led_index} to {color_name}\033[0m")
                 led_changes_made = True
             else:
-                print(f"      Failed to set util LED {led_index}")
+                print(f"      \033[93mWARNING: Failed to set util LED {led_index}\033[0m")
             
             # TODO: Handle other parameters like:
             # - blink: for blinking effects
@@ -434,7 +457,7 @@ def run_util_by_id(util_id: str) -> int:
         return 0
             
     except Exception as e:
-        print(f"    Error executing utility '{util_id}': {e}")
+        print(f"    \033[91mERROR: Executing utility '{util_id}': {e}\033[0m")
         return 1
 
 
@@ -520,7 +543,7 @@ def run_random_track() -> int:
     except KeyboardInterrupt:
         exit_gracefully()
     except Exception as e:
-        print(f"  \033[31mERROR: main track loop: {e}\033[0m")
+        print(f"  \033[91mERROR: main track loop: {e}\033[0m")
 
     return 0
 
