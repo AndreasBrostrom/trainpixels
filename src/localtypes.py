@@ -8,6 +8,7 @@ class ConfigType(TypedDict):
     util_pixel_length: int
     track_pin: str
     util_pin: str
+    status_util_led: int
     brightness: float
     track_speed_modifier: float
     random_util_trigger_chance: float

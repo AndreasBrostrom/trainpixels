@@ -57,6 +57,7 @@ def fetch_config() -> ConfigType:
                 util_pixel_length = config.get("UTIL_PIXEL_LENGTH", 0)
                 track_pin = config.get("TRACK_PIN", "")
                 util_pin = config.get("UTIL_PIN", "")
+                status_util_led = config.get("STATUS_UTIL_LED", 0)
                 brightness = config.get("BRIGHTNESS", 0.2)
                 track_speed_modifier = config.get("TRACK_SPEED_MODIFIER", 1.0)
                 random_util_trigger_chance = config.get(
@@ -68,6 +69,7 @@ def fetch_config() -> ConfigType:
                     util_pixel_length=util_pixel_length,
                     track_pin=track_pin,
                     util_pin=util_pin,
+                    status_util_led=status_util_led,
                     brightness=brightness,
                     track_speed_modifier=track_speed_modifier,
                     random_util_trigger_chance=random_util_trigger_chance,
@@ -85,6 +87,7 @@ TRACK_PIXEL_LENGTH = config["track_pixel_length"]
 UTIL_PIXEL_LENGTH = config["util_pixel_length"]
 TRACK_PIN = config["track_pin"]
 UTIL_PIN = config["util_pin"]
+STATUS_UTIL_LED = config.get("STATUS_UTIL_LED", 0)
 BRIGHTNESS = config["brightness"]
 TRACK_SPEED_MODIFIER = config["track_speed_modifier"]
 RANDOM_UTIL_TRIGGER_CHANCE = config["random_util_trigger_chance"]
@@ -133,9 +136,11 @@ except:
 # FUNCTIONS
 def boot_startup_sequence():
     global TRACKS
-    global INIT_UNITS
-    global TRIGGER_UNITS
+    global INIT_UTILS
+    global TRIGGER_UTILS
     global RANDOM_UTILS
+
+    set_u_led(STATUS_UTIL_LED, "status_indicator_loading", show=True)
 
     print("Initializing...")
     track_queue = multiprocessing.Queue()
@@ -185,7 +190,7 @@ def boot_startup_sequence():
     INIT_UTILS, TRIGGER_UTILS, RANDOM_UTILS = util_queue.get()  # Unpack the separated utils
 
     # Continue rainbow animation while processing is finishing
-    print("Processing complete, finishing rainbow animation...")
+    print("  Processing complete...")
     for _ in range(20):  # A few more rainbow cycles
         for i in range(TRACK_PIXEL_LENGTH):
             pixel_index = (i * 256 // TRACK_PIXEL_LENGTH) + boot_anim_frame * 8
@@ -288,7 +293,7 @@ def util_build_init(queue) -> None:
 
         if len(all_utils) == 0:
             print("  No utils found in utils.d folder")
-            queue.put(([], []))  # Return empty lists for both
+            queue.put(([], [], []))  # Return empty lists for all three categories
             return
 
         print(f"  {len(all_utils)} total utility's loaded")
@@ -303,17 +308,24 @@ def util_build_init(queue) -> None:
             if util.get('enabled_on_init', False):
                 init_utils.append(util)
                 print(
-                    f"    -> Init utils: {util.get('name', util.get('id', 'unnamed'))}")
+                    f"    -> Found Init utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
+                continue
 
             # Check if this should be in random events (exclude if is_random=false)
-            if util.get('is_random', True):  # Default to True for backward compatibility
+            if util.get('is_random', False) and not util.get('enabled_on_init', False):  # Default to True for backward compatibility
                 random_utils.append(util)
                 print(
-                    f"    -> Random utils: {util.get('name', util.get('id', 'unnamed'))}")
-            else:
+                    f"    -> Found Random utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
+                continue
+
+            if not util.get('is_random', False) and not util.get('enabled_on_init', False):
                 trigger_utils.append(util)
                 print(
-                    f"    -> Trigger utils: {util.get('name', util.get('id', 'unnamed'))} (is_random=false)")
+                    f"    -> Found Trigger utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
+                continue
+
+            print(
+                f"    -> Found Unknown utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
 
         print(f"  {len(init_utils)} initialization utils processed")
         print(f"  {len(trigger_utils)} trigger utils processed")
@@ -324,7 +336,7 @@ def util_build_init(queue) -> None:
 
     except Exception as e:
         print(f"Error loading utils: {e}")
-        queue.put(([], []))  # Return empty lists on error
+        queue.put(([], [], []))  # Return empty lists for all three categories on error
 
 
 def get_util_from_id(id: str) -> UtilsType | None:
@@ -434,6 +446,22 @@ def start_screen_animation() -> int:
 
         t_pixels.show()
 
+        # Travel the track
+        for i in track_config['track_path']:
+            track = -1
+
+            if isinstance(i, list) and len(i) > 0:
+                track = i[0]
+            else:
+                track = i
+
+            if track != -1:
+                print(f"  Traveling to track LED {track}")
+                set_t_led(track, "red", show=True)
+                wait(10 * TRACK_SPEED_MODIFIER)
+                # Turn off previous LED (simulate movement)
+                set_t_led(track, "off", show=True)
+
     except KeyboardInterrupt:
         exit_gracefully()
 
@@ -454,20 +482,12 @@ def main():
         execute_init_utils()
 
         # Trigger status utility light
-        print("\n\033[1mSetting status indicator to 'system on'\033[0m")
-        util_obj = get_util_from_id("init_util_system_on")
-        if util_obj and 'utils' in util_obj and len(util_obj['utils']) > 0:
-            status_util = util_obj['utils'][0]
-            print("Load done")
-            set_u_led(0, "status_indicator_red", show=True)
-        else:
-            print("Warning: 'init_util_system_on' utility not found or invalid.")
+        set_u_led(STATUS_UTIL_LED, "status_indicator_green", show=True)
 
         # MAIN LOOP
-        # print("\nStarting main track loop")
-        # while True:
-        #    start_screen_animation()
-        #    wait(1 * TRACK_SPEED_MODIFIER)
+        print("\nStarting main track loop")
+        while True:
+            start_screen_animation()
 
     except NotImplementedError:
         print("Functionality not yet implemented.")
