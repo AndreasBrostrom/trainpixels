@@ -252,7 +252,7 @@ def execute_init_utils():
         for init_event in INIT_UTILS:
             print(
                 f"  Executing: {init_event.get('name', init_event.get('id', 'unnamed'))}")
-            run_util_runner(init_event)
+            run_util_by_id(init_event.get('id'))
         print("Initialization events completed.")
     else:
         print("No initialization events to execute.")
@@ -351,53 +351,46 @@ def get_random_util() -> UtilsType:
     return RANDOM_UTILS[random.randint(0, len(RANDOM_UTILS) - 1)]
 
 
-def run_util_runner(util) -> int:
-    """
-    Execute an util's actions
-    Supports both blinking LEDs and static LED setting
-    """
-    actions_executed = 0
+def run_util_by_id(util_id: str) -> int:
+    """Run a utility by its ID"""
+    if not util_id:
+        return 2  # No action taken
 
-    for e in util.get('utils', []):
-        led_index = e.get('led')
-        color_name = e.get('color')
+    # Find the utility by ID
+    util_obj = get_util_from_id(util_id)
+    if not util_obj:
+        print(f"    Warning: Utility '{util_id}' not found")
+        return 1  # Error
+
+    print(f"    -> Triggering util: {util_obj.get('name', util_id)} [{util_id}]")
+
+    # Execute the utility actions
+    actions_executed = 0
+    for action in util_obj.get('utils', []):
+        led_index = action.get('led')
+        color_name = action.get('color')
 
         if led_index is None or color_name is None:
-            print(f"    Warning: Event missing 'led' or 'color' property")
+            print(f"      Warning: Action missing 'led' or 'color' property")
             continue
 
-        # Blinking LED
-        if e.get('blink', False):
-            duration = e.get('duration', 0.5)  # Default blink duration
-            r, g, b, brightness = get_color(color_name)
+        # Handle blinking LEDs
+        if action.get('blink', False):
+            duration = action.get('duration', 0.5)
+            repeat = action.get('repeat', 1)
 
-            for _ in range(e.get('repeat', 1)):
-                # Turn on LED
-                u_pixels[led_index] = (int(r * brightness),
-                                       int(g * brightness), int(b * brightness))
-                u_pixels.show()
+            for _ in range(repeat):
+                set_u_led(led_index, color_name, show=True)
                 wait(duration)
-
-                # Turn off LED
-                r_off, g_off, b_off, brightness_off = get_color("off")
-                u_pixels[led_index] = (int(r_off * brightness_off),
-                                       int(g_off * brightness_off), int(b_off * brightness_off))
-                u_pixels.show()
+                set_u_led(led_index, "off", show=True)
                 wait(duration)
             actions_executed += 1
-
         else:
-            # Static LED setting (for initialization utils)
-            r, g, b, brightness = get_color(color_name)
-            u_pixels[led_index] = (int(r * brightness),
-                                   int(g * brightness), int(b * brightness))
+            # Static LED setting
+            set_u_led(led_index, color_name, show=True)
             actions_executed += 1
 
-    # Show all changes at once for static utils
-    if actions_executed > 0:
-        u_pixels.show()
-
-    return 0 if actions_executed > 0 else 2  # 0 = success, 2 = no action taken
+    return 0 if actions_executed > 0 else 2
 
 
 def track_build_init(queue):
@@ -416,25 +409,67 @@ def track_build_init(queue):
     return 0
 
 
-def track_pick_tracker() -> TrackType:
+def get_track_by_id(track_id: str) -> TrackType | None:
+    for track in TRACKS:
+        if track.get('id') == track_id:
+            return track
+    return None
+
+
+def get_random_track() -> TrackType:
     return TRACKS[random.randint(0, len(TRACKS) - 1)]
+
+
+def get_track_path(track_path: list) -> list:
+    """Extract only the LED positions from track path, excluding utils"""
+    positions = []
+    for step in track_path:
+        if isinstance(step, list) and len(step) > 0:
+            positions.append(step[0])
+        else:
+            positions.append(step)
+    return positions
+
+
+def count_track_utils(track_path: list) -> int:
+    """Count the total number of utils that will be triggered in a track"""
+    total_utils = 0
+    for step in track_path:
+        if isinstance(step, list) and len(step) > 1:
+            # Second element contains utils list
+            utils = step[1] if len(step) > 1 else []
+            if isinstance(utils, list):
+                total_utils += len(utils)
+            elif utils:  # Single util (not a list)
+                total_utils += 1
+    return total_utils
 
 
 def start_screen_animation() -> int:
     try:
         print("\n\033[1mPicking track\033[0m")
-        track_config = track_pick_tracker()
+
+        # track_config = get_random_track()
+        track_config = get_track_by_id("passthrue_1")
+        if not track_config:
+            print(f"  \033[31mERROR: Track 'passthrue_1' not found\033[0m")
+            return 1
+
         print(
-            f"  Selected track: {track_config['name']} ({track_config['id']})")
+            f"  Selected track: {track_config.get('name', 'Unknown')} ({track_config.get('id', 'Unknown')})")
 
         # Initialize path led path
-        print(f"  Path:      {track_config['track_path']}")
-        print(
-            f"  Speed:     {track_config['speed']} x {TRACK_SPEED_MODIFIER} modifier")
+        track_path = track_config.get('track_path', [])
+        track_positions = get_track_path(track_path)
+        utils_count = count_track_utils(track_path)
+
+        print(f"  Path:      {track_positions}")
+        print(f"  Utils:     {utils_count} util(s) will be triggered")
+        print(f"  Speed:     {track_config.get('speed', 1)} x {TRACK_SPEED_MODIFIER} modifier")
         print(f"  ---")
 
         # Enabling track
-        for i in track_config['track_path']:
+        for i in track_config.get('track_path', []):
             track = -1
 
             if isinstance(i, list) and len(i) > 0:
@@ -453,18 +488,39 @@ def start_screen_animation() -> int:
 
             if isinstance(i, list) and len(i) > 0:
                 track = i[0]
+                util = i[1] if len(i) > 1 else None
             else:
                 track = i
+                util = None
 
+            # Trigger any utils for this step
             if track != -1:
                 print(f"  Traveling to track LED {track}")
                 set_t_led(track, "red", show=True)
-                wait(10 * TRACK_SPEED_MODIFIER)
-                # Turn off previous LED (simulate movement)
+            else:
+                print(f"  Traveling is paused and waiting {track}")
+
+            # Trigger any utils for this step
+            if util:
+                if isinstance(util, list):
+                    # Multiple utils
+                    for util_id in util:
+                        if util_id:  # Skip empty strings
+                            run_util_by_id(util_id)
+                else:
+                    # Single util
+                    run_util_by_id(util)
+
+            wait(10 * TRACK_SPEED_MODIFIER)
+
+            # Turn off previous LED (simulate movement)
+            if track != -1:
                 set_t_led(track, "off", show=True)
 
     except KeyboardInterrupt:
         exit_gracefully()
+    except Exception as e:
+        print(f"  \033[31mERROR: main track loop: {e}\033[0m")
 
     return 0
 

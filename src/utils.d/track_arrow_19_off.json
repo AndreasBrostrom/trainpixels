@@ -1,0 +1,12 @@
+{
+  "id": "track_arrow_19_off",
+  "name": "Util Lights - Gävle > Arrow - Off",
+  "enabled_on_init": false,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 19,
+      "color": "off"
+    }
+  ]
+}

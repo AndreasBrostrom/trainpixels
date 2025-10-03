@@ -1,0 +1,12 @@
+{
+  "id": "track_arrow_18",
+  "name": "Util Lights - Gävle < Arrow",
+  "enabled_on_init": false,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 18,
+      "color": "white"
+    }
+  ]
+}

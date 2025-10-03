@@ -1,0 +1,12 @@
+{
+  "id": "track_arrow_27_off",
+  "name": "Util Lights - West < Arrow - Off",
+  "enabled_on_init": false,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 27,
+      "color": "off"
+    }
+  ]
+}
