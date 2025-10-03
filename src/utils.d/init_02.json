@@ -1,0 +1,84 @@
+{
+  "id": "init_util_letter_lamps",
+  "name": "Util Lights - Letter Lamps",
+  "enabled_on_init": true,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 2,
+      "color": "white"
+    },
+    {
+      "led": 3,
+      "color": "white"
+    },
+    {
+      "led": 4,
+      "color": "white"
+    },
+    {
+      "led": 5,
+      "color": "white"
+    },
+    {
+      "led": 6,
+      "color": "white"
+    },
+    {
+      "led": 7,
+      "color": "white"
+    },
+    {
+      "led": 14,
+      "color": "white"
+    },
+    {
+      "led": 15,
+      "color": "white"
+    },
+    {
+      "led": 16,
+      "color": "white"
+    },
+    {
+      "led": 17,
+      "color": "white"
+    },
+    {
+      "led": 29,
+      "color": "white"
+    },
+    {
+      "led": 39,
+      "color": "white"
+    },
+    {
+      "led": 31,
+      "color": "white"
+    },
+    {
+      "led": 32,
+      "color": "white"
+    },
+    {
+      "led": 33,
+      "color": "white"
+    },
+    {
+      "led": 40,
+      "color": "white"
+    },
+    {
+      "led": 41,
+      "color": "white"
+    },
+    {
+      "led": 42,
+      "color": "white"
+    },
+    {
+      "led": 43,
+      "color": "white"
+    }
+  ]
+}
