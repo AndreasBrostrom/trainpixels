@@ -547,7 +547,7 @@ def start_screen_animation() -> int:
 
             if track != -1:
                 print(f"  Enabling track LED {track}")
-                set_t_led(track, "red", show=False)
+                set_t_led(track, "white", show=False)
 
         t_pixels.show()
 
