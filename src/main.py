@@ -120,8 +120,9 @@ try:
         brightness=BRIGHTNESS,
         auto_write=False)
 
-except:
+except Exception as error:
     print("\033[93mWARNING: Neopixel library not supported on this platform. Using dummy classes.\033[0m")
+    print(f"\033[93m         Error details: {error}\033[0m")
     from debug import DummyBoard, DummyPixels
     board = DummyBoard()
 
