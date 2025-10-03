@@ -1,0 +1,12 @@
+{
+  "id": "track_arrow_20",
+  "name": "Util Lights - East < Arrow",
+  "enabled_on_init": false,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 20,
+      "color": "white"
+    }
+  ]
+}

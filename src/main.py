@@ -6,34 +6,41 @@ import time
 import random
 import multiprocessing
 from typing import Tuple
+from localtypes import ConfigType, TrackType, UtilsType
 
 
 """
-status codes
-0 - success
-1 - error
-2 - no action taken
-3 - invalid input
-4 - already in desired state
-5 - timeout
-6 - not supported
-7 - hardware failure
-8 - software failure
-9 - unknown error
+    status codes
+    0 - success
+    1 - error
+    2 - no action taken
+    3 - invalid input
+    4 - already in desired state
+    5 - timeout
+    6 - not supported
+    7 - hardware failure
+    8 - software failure
+    9 - unknown error
 """
 
 random.seed(time.time())
 SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-
+# Tracks
 global TRACKS
-global EVENTS
-TRACKS = []
-EVENTS = []
-
+TRACKS: list[TrackType] = []
+# Utility Lights
+global INIT_UTILS
+INIT_UTILS: list[UtilsType] = []
+global TRIGGER_UTILS
+TRIGGER_UTILS: list[UtilsType] = []
+global RANDOM_UTILS
+RANDOM_UTILS: list[UtilsType] = []
 
 # HANDLE CONFIG
-def fetch_config():
+
+
+def fetch_config() -> ConfigType:
     home_config = os.path.join(os.path.expanduser(
         "~"), ".config", "trailpixels", "config.json")
     local_config = os.path.join(SCRIPT_ROOT, "config.json")
@@ -46,13 +53,28 @@ def fetch_config():
         try:
             with open(config_path, 'r') as f:
                 config = json.load(f)
-                num_pixels = config.get('NUM_PIXELS')
-                led_pin_name = config.get('LED_PIN', 'D21')
-                brightness = config.get('BRIGHTNESS', 0.5)
-                random_event_chance = config.get('RANDOM_EVENT_CHANCE')
-                next_track_wait = config.get('NEXT_TRACK_WAIT')
-                color_table = config.get('COLOR_TABLE', {})
-                return num_pixels, led_pin_name, brightness, random_event_chance, next_track_wait, color_table
+                track_pixel_length = config.get("TRACK_PIXEL_LENGTH", 0)
+                util_pixel_length = config.get("UTIL_PIXEL_LENGTH", 0)
+                track_pin = config.get("TRACK_PIN", "")
+                util_pin = config.get("UTIL_PIN", "")
+                status_util_led = config.get("STATUS_UTIL_LED", 0)
+                brightness = config.get("BRIGHTNESS", 0.2)
+                track_speed_modifier = config.get("TRACK_SPEED_MODIFIER", 1.0)
+                random_util_trigger_chance = config.get(
+                    "RANDOM_UTIL_TRIGGER_CHANCE", 0)
+                color_table = config.get("COLOR_TABLE", {})
+
+                return ConfigType(
+                    track_pixel_length=track_pixel_length,
+                    util_pixel_length=util_pixel_length,
+                    track_pin=track_pin,
+                    util_pin=util_pin,
+                    status_util_led=status_util_led,
+                    brightness=brightness,
+                    track_speed_modifier=track_speed_modifier,
+                    random_util_trigger_chance=random_util_trigger_chance,
+                    color_table=color_table
+                )
         except json.JSONDecodeError:
             print("Error decoding config file.")
     print("Config file not found in ScriptRoot or ~/.config/trailpixel/.")
@@ -60,42 +82,76 @@ def fetch_config():
 
 
 # GLOBAL VARIABLES
-NUM_PIXELS, LED_PIN_NAME, BRIGHTNESS, RANDOM_EVENT_CHANCE, NEXT_TRACK_WAIT, COLOR_TABLE = fetch_config()
+config = fetch_config()
+TRACK_PIXEL_LENGTH = config["track_pixel_length"]
+UTIL_PIXEL_LENGTH = config["util_pixel_length"]
+TRACK_PIN = config["track_pin"]
+UTIL_PIN = config["util_pin"]
+STATUS_UTIL_LED = config.get("STATUS_UTIL_LED", 0)
+BRIGHTNESS = config["brightness"]
+TRACK_SPEED_MODIFIER = config["track_speed_modifier"]
+RANDOM_UTIL_TRIGGER_CHANCE = config["random_util_trigger_chance"]
+COLOR_TABLE = config["color_table"]
+
 
 try:
     import board
     import neopixel
 
-    # Convert LED_PIN_NAME string from config to board attribute
-    LED_PIN = getattr(board, LED_PIN_NAME)
+    if UTIL_PIN == 0 or TRACK_PIN == 0:
+        print("Error: TRACK_PIN and UTIL_PIN must be set in config file.")
+        sys.exit(1)
+    if TRACK_PIXEL_LENGTH == 0 or UTIL_PIXEL_LENGTH == 0:
+        print("Error: TRACK_PIXEL_LENGTH and UTIL_PIXEL_LENGTH must be set in config file.")
+        sys.exit(1)
 
-    pixels = neopixel.NeoPixel(
-        LED_PIN,
-        NUM_PIXELS,
+    # GLOBAL LED VARIABLES
+    TRACK_PIN = getattr(board, TRACK_PIN)
+    t_pixels = neopixel.NeoPixel(
+        TRACK_PIN,
+        TRACK_PIXEL_LENGTH,
         brightness=BRIGHTNESS,
         auto_write=False)
-except:
+
+    UTIL_PIN = getattr(board, UTIL_PIN)
+    u_pixels = neopixel.NeoPixel(
+        UTIL_PIN,
+        UTIL_PIXEL_LENGTH,
+        brightness=BRIGHTNESS,
+        auto_write=False)
+
+except Exception as error:
     print("\033[93mWARNING: Neopixel library not supported on this platform. Using dummy classes.\033[0m")
+    print(f"\033[93m         Error details: {error}\033[0m")
     from debug import DummyBoard, DummyPixels
     board = DummyBoard()
-    LED_PIN = getattr(board, LED_PIN_NAME)
-    pixels = DummyPixels(LED_PIN, NUM_PIXELS,
-                         brightness=BRIGHTNESS, auto_write=False)
+
+    TRACK_PIN = getattr(board, TRACK_PIN)
+    t_pixels = DummyPixels(TRACK_PIN, TRACK_PIXEL_LENGTH,
+                           brightness=BRIGHTNESS, auto_write=False)
+    UTIL_PIN = getattr(board, UTIL_PIN)
+    u_pixels = DummyPixels(UTIL_PIN, UTIL_PIXEL_LENGTH,
+                           brightness=BRIGHTNESS, auto_write=False)
 
 
 # FUNCTIONS
 def boot_startup_sequence():
     global TRACKS
-    global EVENTS
+    global INIT_UTILS
+    global TRIGGER_UTILS
+    global RANDOM_UTILS
+
+    set_u_led(STATUS_UTIL_LED, "status_indicator_loading", show=True)
+
     print("Initializing...")
     track_queue = multiprocessing.Queue()
-    event_queue = multiprocessing.Queue()
+    util_queue = multiprocessing.Queue()
     track_proc = multiprocessing.Process(
         target=track_build_init, args=(track_queue,))
-    event_proc = multiprocessing.Process(
-        target=event_build_init, args=(event_queue,))
+    util_proc = multiprocessing.Process(
+        target=util_build_init, args=(util_queue,))
     track_proc.start()
-    event_proc.start()
+    util_proc.start()
 
     # Run boot animation until both processes are done
     boot_anim_frame = 0
@@ -109,42 +165,121 @@ def boot_startup_sequence():
         else:
             pos -= 170
             return (0, int(pos * 3), int(255 - pos * 3))
-    while track_proc.is_alive() or event_proc.is_alive():
-        for i in range(NUM_PIXELS):
-            pixel_index = (i * 256 // NUM_PIXELS) + boot_anim_frame * 8
+    while track_proc.is_alive() or util_proc.is_alive():
+        for i in range(TRACK_PIXEL_LENGTH):
+            pixel_index = (i * 256 // TRACK_PIXEL_LENGTH) + boot_anim_frame * 8
             r, g, b = wheel(pixel_index & 255)
             brightness = 0.2
-            pixels[i] = (int(r * brightness),
-                         int(g * brightness), int(b * brightness))
-        pixels.show()
+            t_pixels[i] = (int(r * brightness),
+                           int(g * brightness), int(b * brightness))
+        t_pixels.show()
         boot_anim_frame += 1
         wait(0.05)
+
     # Ensure both processes are joined
     track_proc.join()
-    event_proc.join()
+    util_proc.join()
 
     if track_proc.exitcode != 0:
         print("Track process failed. Exiting.")
         sys.exit(1)
-    if event_proc.exitcode != 0:
+    if util_proc.exitcode != 0:
         print("Event process failed. Exiting.")
         sys.exit(1)
 
     TRACKS = track_queue.get()
-    EVENTS = event_queue.get()
+    INIT_UTILS, TRIGGER_UTILS, RANDOM_UTILS = util_queue.get()  # Unpack the separated utils
+
+    # Continue rainbow animation while processing is finishing
+    print("  Processing complete...")
+    for _ in range(20):  # A few more rainbow cycles
+        for i in range(TRACK_PIXEL_LENGTH):
+            pixel_index = (i * 256 // TRACK_PIXEL_LENGTH) + boot_anim_frame * 8
+            r, g, b = wheel(pixel_index & 255)
+            brightness = 0.2
+            t_pixels[i] = (int(r * brightness),
+                           int(g * brightness), int(b * brightness))
+        t_pixels.show()
+        boot_anim_frame += 1
+        wait(0.05)
 
     # Turn off LEDs after boot animation
-    pixels.fill((0, 0, 0))
-    pixels.show()
+    t_pixels.fill((0, 0, 0))
+    t_pixels.show()
     wait(1)
+
     print("Initialization complete.")
+    return 0
+
+
+def set_t_led(led_index: int, color_name: str, show: bool = False) -> int:
+    try:
+        r, g, b, brightness = get_color(color_name)
+
+        t_pixels[led_index] = (int(r * brightness),
+                               int(g * brightness), int(b * brightness))
+        if show:
+            t_pixels.show()
+        return 0
+    except Exception as e:
+        print(f"Error setting T LED {led_index}: {e}")
+        return 1
+
+
+def set_u_led(led_index: int, color_name: str, show: bool = False) -> int:
+    try:
+        r, g, b, brightness = get_color(color_name)
+
+        u_pixels[led_index] = (int(r * brightness),
+                               int(g * brightness), int(b * brightness))
+        if show:
+            u_pixels.show()
+        return 0
+    except Exception as e:
+        print(f"Error setting U LED {led_index}: {e}")
+        return 1
 
 
 # HELPER FUNCTIONS
+def execute_init_utils():
+    """
+    Execute all initialization events (separate from boot sequence)
+    Wait for all to complete before continuing
+    """
+    global INIT_UTILS
+
+    if len(INIT_UTILS) > 0:
+        print(f"\033[1mExecuting {len(INIT_UTILS)} initialization events...\033[0m")
+
+        # Keep track of all processes
+        init_processes = []
+
+        for init_event in INIT_UTILS:
+            print(
+                f"  Executing: {init_event.get('name', init_event.get('id', 'unnamed'))}")
+
+            # Start the utility process and keep reference
+            process = run_util_by_id_with_process(init_event.get('id'))
+            if process:
+                init_processes.append(process)
+
+        # Wait for all initialization processes to complete
+        if init_processes:
+            for i, process in enumerate(init_processes):
+                process.join()  # Wait for this process to finish
+                print(f"    -> Init process {i+1}/{len(init_processes)} completed")
+
+        print("All initialization utils completed.")
+    else:
+        print("No initialization utils to execute.")
+
+
 def exit_gracefully():
     print("\nLEDs turned off. Goodbye!")
-    pixels.fill((0, 0, 0))
-    pixels.show()
+    t_pixels.fill((0, 0, 0))
+    t_pixels.show()
+    u_pixels.fill((0, 0, 0))
+    u_pixels.show()
     sys.exit(0)
 
 
@@ -163,48 +298,172 @@ def get_color(name: str) -> Tuple[int, int, int, int]:
     return COLOR_TABLE.get(name, (0, 0, 0, 0))
 
 
-def event_build_init(queue):
-    # FIXME
-    # This function would pick a random event from events.d folder
-    for filename in os.listdir(os.path.join(SCRIPT_ROOT, "events.d")):
-        if filename.endswith(".json"):
-            with open(os.path.join(SCRIPT_ROOT, "events.d", filename), 'r') as f:
-                event = json.load(f)
-                EVENTS.append(event)
-    if len(EVENTS) == 0:
-        print("  No events found in events.d folder")
-    queue.put(EVENTS)
-    print(f"  {len(EVENTS)} events have been detectred and added")
+def util_build_init(queue) -> None:
+    try:
+        all_utils = []
+        # First, load all utils
+        for filename in os.listdir(os.path.join(SCRIPT_ROOT, "utils.d")):
+            if filename.endswith(".json"):
+                with open(os.path.join(SCRIPT_ROOT, "utils.d", filename), 'r') as f:
+                    util = json.load(f)
+                    all_utils.append(util)
+
+        if len(all_utils) == 0:
+            print("  No utils found in utils.d folder")
+            queue.put(([], [], []))  # Return empty lists for all three categories
+            return
+
+        print(f"  {len(all_utils)} total utility's loaded")
+
+        # Now separate them
+        init_utils = []
+        trigger_utils = []
+        random_utils = []
+
+        for util in all_utils:
+            # Check if this is an initialization event
+            if util.get('enabled_on_init', False):
+                init_utils.append(util)
+                print(
+                    f"    -> Found Init utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
+                continue
+
+            # Check if this should be in random events (exclude if is_random=false)
+            if util.get('is_random', False) and not util.get('enabled_on_init', False):  # Default to True for backward compatibility
+                random_utils.append(util)
+                print(
+                    f"    -> Found Random utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
+                continue
+
+            if not util.get('is_random', False) and not util.get('enabled_on_init', False):
+                trigger_utils.append(util)
+                print(
+                    f"    -> Found Trigger utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
+                continue
+
+            print(
+                f"    -> Found Unknown utils: {util.get('name', util.get('id', 'unnamed'))} [{util.get('id', 'noid')}]")
+
+        print(f"  {len(init_utils)} initialization utils processed")
+        print(f"  {len(trigger_utils)} trigger utils processed")
+        print(f"  {len(random_utils)} random utils processed")
+
+        # Return both lists as a tuple
+        queue.put((init_utils, trigger_utils, random_utils))
+
+    except Exception as e:
+        print(f"Error loading utils: {e}")
+        queue.put(([], [], []))  # Return empty lists for all three categories on error
 
 
-def event_picker() -> dict:
-    return EVENTS[random.randint(0, len(EVENTS) - 1)]
+def get_util_from_id(id: str) -> UtilsType | None:
+    for util in INIT_UTILS + TRIGGER_UTILS + RANDOM_UTILS:
+        if util.get('id') == id:
+            return util
+    return None
 
 
-def event_runner(event) -> int:
-    for e in event.get('events', []):
-        # Blinking LED
-        if e.get('blink', False):
-            led_index = e.get('led')
-            color_name = e.get('color')
-            duration = e.get('duration')
+def get_random_util() -> UtilsType:
+    return RANDOM_UTILS[random.randint(0, len(RANDOM_UTILS) - 1)]
 
-            r, g, b, brightness = get_color(color_name)
-            for _ in range(e.get('repeat', 1)):
-                # Turn on LED
-                pixels[led_index] = (int(r * brightness),
-                                     int(g * brightness), int(b * brightness))
-                pixels.show()
-                wait(duration)
 
-                # Turn off LED
-                r, g, b, brightness = get_color("off")
-                pixels[led_index] = (int(r * brightness),
-                                     int(g * brightness), int(b * brightness))
-                pixels.show()
-                wait(duration)
-            return 0
-    return 2  # No action taken
+def _run_util_process(util_obj: dict, color_table: dict, util_pin_config: dict) -> int:
+    """Internal function to run utility in a separate process"""
+    try:
+        # Import LED libraries in the subprocess
+        try:
+            import board
+            import neopixel
+            UTIL_PIN = getattr(board, util_pin_config['pin_name'])
+            u_pixels = neopixel.NeoPixel(
+                UTIL_PIN,
+                util_pin_config['pixel_length'],
+                brightness=util_pin_config['brightness'],
+                auto_write=False
+            )
+        except Exception:
+            from debug import DummyBoard, DummyPixels
+            board = DummyBoard()
+            UTIL_PIN = getattr(board, util_pin_config['pin_name'])
+            u_pixels = DummyPixels(
+                UTIL_PIN,
+                util_pin_config['pixel_length'],
+                brightness=util_pin_config['brightness'],
+                auto_write=False
+            )
+
+        def get_color_in_process(name: str):
+            return color_table.get(name, (0, 0, 0, 0))
+
+        def set_u_led_in_process(led_index: int, color_name: str, show: bool = False):
+            r, g, b, brightness = get_color_in_process(color_name)
+            u_pixels[led_index] = (int(r * brightness), int(g * brightness), int(b * brightness))
+            if show:
+                u_pixels.show()
+
+        print(f"  Executing util: {util_obj.get('name', 'unnamed')} [{util_obj.get('id', 'no-id')}]")
+
+        actions_executed = 0
+        for action in util_obj.get('utils', []):
+            led_index = action.get('led')
+            color_name = action.get('color')
+
+            # Handle blinking LEDs
+            if action.get('blink', False):
+                duration = action.get('duration', 0.5)
+                repeat = action.get('repeat', 1)
+
+                for _ in range(repeat):
+                    set_u_led_in_process(led_index, color_name, show=True)
+                    time.sleep(duration)
+                    set_u_led_in_process(led_index, "off", show=True)
+                    time.sleep(duration)
+                actions_executed += 1
+            else:
+                # Static LED setting
+                set_u_led_in_process(led_index, color_name, show=True)
+                actions_executed += 1
+
+        return 0 if actions_executed > 0 else 2
+
+    except Exception as e:
+        print(f"    \033[31mError: executing util: {e}\033[0m")
+        return 1
+
+
+def run_util_by_id_with_process(util_id: str) -> multiprocessing.Process | None:
+    """Run a utility by its ID in a separate process and return the process object"""
+    if not util_id:
+        return None
+
+    # Find the utility by ID
+    util_obj = get_util_from_id(util_id)
+    if not util_obj:
+        print(f"    Warning: Utility '{util_id}' not found")
+        return None
+
+    # Prepare configuration data for the subprocess
+    util_pin_config = {
+        'pin_name': UTIL_PIN,
+        'pixel_length': UTIL_PIXEL_LENGTH,
+        'brightness': BRIGHTNESS
+    }
+
+    # Create and start the process
+    process = multiprocessing.Process(
+        target=_run_util_process,
+        args=(util_obj, COLOR_TABLE, util_pin_config),
+        name=f"Util-{util_id}"
+    )
+
+    process.start()
+    return process
+
+
+def run_util_by_id(util_id: str) -> int:
+    """Run a utility by its ID in a separate process (fire and forget)"""
+    process = run_util_by_id_with_process(util_id)
+    return 0 if process else 1
 
 
 def track_build_init(queue):
@@ -223,81 +482,111 @@ def track_build_init(queue):
     return 0
 
 
-def track_pick_tracker() -> dict:
+def get_track_by_id(track_id: str) -> TrackType | None:
+    for track in TRACKS:
+        if track.get('id') == track_id:
+            return track
+    return None
+
+
+def get_random_track() -> TrackType:
     return TRACKS[random.randint(0, len(TRACKS) - 1)]
 
 
-def start_path_animation(track_led_path: list, track_led_indicator: int, track_speed: int) -> int:
-    try:
-        if not track_led_path:
-            print("No LED path provided.")
-            return 2  # No action taken
+def get_track_path(track_path: list) -> list:
+    """Extract only the LED positions from track path, excluding utils"""
+    positions = []
+    for step in track_path:
+        if isinstance(step, list) and len(step) > 0:
+            positions.append(step[0])
+        else:
+            positions.append(step)
+    return positions
 
-        # initialize path led path
-        print(f"  Path:      {track_led_path}")
-        print(f"  Indicator: {track_led_indicator}")
-        print(f"  Speed:     {track_speed}")
+
+def count_track_utils(track_path: list) -> int:
+    """Count the total number of utils that will be triggered in a track"""
+    total_utils = 0
+    for step in track_path:
+        if isinstance(step, list) and len(step) > 1:
+            # Second element contains utils list
+            utils = step[1] if len(step) > 1 else []
+            if isinstance(utils, list):
+                total_utils += len(utils)
+            elif utils:  # Single util (not a list)
+                total_utils += 1
+    return total_utils
+
+
+def start_screen_animation() -> int:
+    try:
+        print("\n\033[1mPicking track\033[0m")
+
+        track_config = get_random_track()
+
+        print(f"  Selected track: {track_config.get('name', 'Unknown')} ({track_config.get('id', 'Unknown')})")
+
+        # Initialize path led path
+        track_path = track_config.get('track_path', [])
+        track_positions = get_track_path(track_path)
+        utils_count = count_track_utils(track_path)
+
+        print(f"  Path:      {track_positions}")
+        print(f"  Utils:     {utils_count} util(s) will be triggered")
+        print(f"  Speed:     {track_config.get('speed', 1)} x {TRACK_SPEED_MODIFIER} modifier")
         print(f"  ---")
 
-        # turn on track indicator
-        r, g, b, brightness = get_color("green")
-        pixels[track_led_indicator] = (int(r * brightness),
-                                       int(g * brightness), int(b * brightness))
-        pixels.show()
+        # Enabling track
+        for i in track_config.get('track_path', []):
+            track = -1
 
-        for i in track_led_path:
-            r, g, b, brightness = get_color("white")
-            pixels[i] = (int(r * brightness),
-                         int(g * brightness), int(b * brightness))
-            pixels.show()
-        wait(track_speed * 0.5)
+            if isinstance(i, list) and len(i) > 0:
+                track = i[0]
+            else:
+                track = i
 
-        # animate path
-        for idx, i in enumerate(track_led_path):
-            r, g, b, brightness = get_color("red")
-            print(
-                f"  Traveling to LED {i} {f'disabling {track_led_path[idx - 1]}' if idx > 0 else ''}")
-            pixels[i] = (int(r * brightness),
-                         int(g * brightness), int(b * brightness))
-            pixels.show()
+            if track != -1:
+                print(f"  Enabling track LED {track}")
 
-            # Turn off previous LED in path
-            if idx > 0:
-                prev = track_led_path[idx - 1]
-                r_off, g_off, b_off, brightness_off = get_color("off")
-                pixels[prev] = (int(r_off * brightness_off),
-                                int(g_off * brightness_off), int(b_off * brightness_off))
-                pixels.show()
+        t_pixels.show()
 
-            # Temporarily disabled
-            # add possible event
-            # if len(EVENTS) > 0:
-            #    if (random.randint(0, 10) < RANDOM_EVENT_CHANCE):
-            #        print("    ---")
-            #        print("    Triggering random event")
-            #        event = event_picker()
-            #        print(f"    Event:     {event['name']} ({event['id']})")
-            #        print("    ---")
-            #        p = multiprocessing.Process(
-            #            target=event_runner, args=(event,))
-            #        p.start()
-            #        pixels.show()
-            # wait(track_speed)
+        # Travel the track
+        for i in track_config['track_path']:
+            track = -1
 
-        # turn off path
-        print("  Track completed resetting")
-        r, g, b, brightness = get_color("off")
-        for i in track_led_path:
-            pixels[i] = (int(r * brightness),
-                         int(g * brightness), int(b * brightness))
-        pixels[track_led_indicator] = (int(r * brightness),
-                                       int(g * brightness), int(b * brightness))
-        pixels.show()
-        wait(NEXT_TRACK_WAIT)
-        return 0
+            if isinstance(i, list) and len(i) > 0:
+                track = i[0]
+                track_util = i[1] if len(i) > 1 else None
+            else:
+                track = i
+                track_util = None
+
+            # Trigger any utils for this step
+            if track != -1:
+                print(f"  Traveling to track LED {track}")
+                set_t_led(track, "red", show=True)
+            else:
+                print(f"  Traveling is paused and waiting {track}")
+
+            # Execute any utils for this step
+            if track_util:
+                # Handle both single util and list of utils uniformly
+                utils_to_run = track_util if isinstance(track_util, list) else [track_util]
+
+                for util_id in utils_to_run:
+                    if util_id:  # Skip empty/None entries
+                        run_util_by_id(util_id)
+
+            wait(10 * TRACK_SPEED_MODIFIER)
+
+            # Turn off previous LED (simulate movement)
+            if track != -1:
+                set_t_led(track, "off", show=True)
 
     except KeyboardInterrupt:
         exit_gracefully()
+    except Exception as e:
+        print(f"  \033[31mERROR: main track loop: {e}\033[0m")
 
     return 0
 
@@ -305,22 +594,24 @@ def start_path_animation(track_led_path: list, track_led_indicator: int, track_s
 def main():
     try:
         print("\033[1mStarting TrainPixels\033[0m")
-        print(f"  Pixels: {NUM_PIXELS}")
-        print(f"  Pin:    {LED_PIN_NAME}")
+        print(
+            f"  Pixels: {TRACK_PIXEL_LENGTH} on track, {UTIL_PIXEL_LENGTH} on utils")
+        print(f"  Pin:    {TRACK_PIN} on track, {UTIL_PIN} on utils")
         print("")
 
         boot_startup_sequence()
+        print()
 
-        print("\nStarting main track loop")
+        # Execute initialization utilities after boot sequence
+        execute_init_utils()
+
+        # Trigger status utility light
+        set_u_led(STATUS_UTIL_LED, "status_indicator_green", show=True)
+
         # MAIN LOOP
+        print("\nStarting main track loop")
         while True:
-            wait(2)
-            print("\n\033[1mPicking track\033[0m")
-            track = track_pick_tracker()
-
-            print(f"  Selected track: {track['name']} ({track['id']})")
-            start_path_animation(
-                track["led_path"], track["led_path_indicator"], track["speed"])
+            start_screen_animation()
 
     except NotImplementedError:
         print("Functionality not yet implemented.")
