@@ -1,6 +1,6 @@
 {
-    "id": "sandviken_1",
-    "name": "Sandviken to Gävle 1",
-    "track_path": [ 34, 35, 36, 24, 18, 19 ],
-    "speed": 1
+  "id": "sandviken_1",
+  "name": "Sandviken to Gävle 1",
+  "track_path": [34, 35, 36, 24, 18, 19],
+  "speed": 1
 }

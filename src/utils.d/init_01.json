@@ -1,0 +1,72 @@
+{
+  "id": "init_util_station_block",
+  "name": "Init Util Lights - Station block indicators",
+  "enabled_on_init": true,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 0,
+      "color": "red"
+    },
+    {
+      "led": 1,
+      "color": "red"
+    },
+    {
+      "led": 8,
+      "color": "red"
+    },
+    {
+      "led": 9,
+      "color": "red"
+    },
+    {
+      "led": 11,
+      "color": "red"
+    },
+    {
+      "led": 12,
+      "color": "red"
+    },
+    {
+      "led": 22,
+      "color": "red"
+    },
+    {
+      "led": 23,
+      "color": "red"
+    },
+    {
+      "led": 24,
+      "color": "red"
+    },
+    {
+      "led": 25,
+      "color": "red"
+    },
+    {
+      "led": 34,
+      "color": "red"
+    },
+    {
+      "led": 35,
+      "color": "red"
+    },
+    {
+      "led": 36,
+      "color": "red"
+    },
+    {
+      "led": 37,
+      "color": "red"
+    },
+    {
+      "led": 38,
+      "color": "red"
+    },
+    {
+      "led": 39,
+      "color": "red"
+    }
+  ]
+}

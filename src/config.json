@@ -1,52 +1,21 @@
 {
-    "NUM_PIXELS": 10,
-    "LED_PIN": "D19",
-    "BRIGHTNESS": 0.2,
-    "RANDOM_EVENT_CHANCE": 0.2,
-    "TRACK_SPEED_MODIFIER": 1.0,
-    "NEXT_TRACK_WAIT": 2,
-    "COLOR_TABLE": {
-        "red": [
-            255,
-            0,
-            0,
-            0.3
-        ],
-        "green": [
-            0,
-            255,
-            0,
-            0.2
-        ],
-        "white": [
-            255,
-            255,
-            255,
-            0.2
-        ],
-        "blue": [
-            0,
-            0,
-            255,
-            0.5
-        ],
-        "yellow": [
-            255,
-            255,
-            0,
-            0.5
-        ],
-        "purple": [
-            128,
-            0,
-            128,
-            0.5
-        ],
-        "off": [
-            0,
-            0,
-            0,
-            0.5
-        ]
-    }
+  "TRACK_PIXEL_LENGTH": 41,
+  "UTIL_PIXEL_LENGTH": 43,
+  "TRACK_PIN": "D19",
+  "UTIL_PIN": "GPIO26",
+  "BRIGHTNESS": 0.2,
+  "TRACK_SPEED_MODIFIER": 1.0,
+  "RANDOM_UTIL_TRIGGER_CHANCE": 0,
+  "COLOR_TABLE": {
+    "red": [255, 0, 0, 0.3],
+    "green": [0, 255, 0, 0.2],
+    "white": [255, 255, 255, 0.2],
+    "blue": [0, 0, 255, 0.5],
+    "yellow": [255, 255, 0, 0.5],
+    "purple": [128, 0, 128, 0.5],
+    "off": [0, 0, 0, 0.5],
+    "status_indicator_green": [0, 255, 0, 0.1],
+    "status_indicator_yellow": [255, 255, 0, 0.1],
+    "status_indicator_red": [255, 0, 0, 0.1]
+  }
 }

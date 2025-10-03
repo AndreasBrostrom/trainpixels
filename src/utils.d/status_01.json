@@ -1,0 +1,12 @@
+{
+  "id": "init_util_system_on",
+  "name": "Init Util Lights - System On",
+  "enabled_on_init": false,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 13,
+      "color": "status_indicator_green"
+    }
+  ]
+}
