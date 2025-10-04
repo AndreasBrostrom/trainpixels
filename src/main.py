@@ -142,8 +142,6 @@ def boot_startup_sequence():
     global TRIGGER_UTILS
     global RANDOM_UTILS
 
-    set_u_led(STATUS_UTIL_LED, "status_indicator_loading", show=True)
-
     print("\033[1mInitializing...\033[0m")
     track_queue = multiprocessing.Queue()
     util_queue = multiprocessing.Queue()
@@ -385,6 +383,8 @@ def wait(time_in_seconds):
 
 def get_color(name: str) -> Tuple[int, int, int, int]:
     # Default to off if not found
+    if name not in COLOR_TABLE:
+        print(f"\033[93mWARNING: Color '{name}' not found in color table, using default (off)\033[0m")
     return COLOR_TABLE.get(name, (0, 0, 0, 0))
 
 
@@ -555,6 +555,8 @@ def main():
             f"  Pixels: {TRACK_PIXEL_LENGTH} on track, {UTIL_PIXEL_LENGTH} on utils")
         print(f"  Pin:    {TRACK_PIN} on track, {UTIL_PIN} on utils")
         print("")
+        
+        set_u_led(STATUS_UTIL_LED, "status_indicator_yellow", show=True)
 
         boot_startup_sequence()
         print()
