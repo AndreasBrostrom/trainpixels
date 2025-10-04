@@ -325,9 +325,8 @@ def execute_init_utils():
         print(f"\033[1mExecuting {len(INIT_UTILS)} initialization utility functions...\033[0m")
 
         for i, init_event in enumerate(INIT_UTILS):
-
             # Execute the utility synchronously and wait for completion
-            result = run_util_by_id(init_event.get('id'))
+            run_util_by_id(init_event.get('id'))
             print(f"  Init process {i+1}/{len(INIT_UTILS)} completed")
 
         print("All initialization utils completed.")
@@ -433,7 +432,7 @@ def run_util_by_id(util_id: str) -> int:
             # Apply the LED change (but don't show yet)
             result = set_u_led(led_index, color_name, show=False)
             if result == 0:
-                print(f"    \033[2mSet util LED {led_index} to {color_name}\033[0m")
+                print(f"    \033[2mPreparing util LED {led_index} to {color_name}\033[0m")
                 led_changes_made = True
             else:
                 print(f"      \033[93mWARNING: Failed to set util LED {led_index}\033[0m")
@@ -447,6 +446,7 @@ def run_util_by_id(util_id: str) -> int:
             
         # Show all changes at once
         if led_changes_made:
+            print(f"    \033[2mEnabling util LEDs\033[0m")
             u_pixels.show()
         
         # Wait for the total time if needed

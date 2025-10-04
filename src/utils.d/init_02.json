@@ -29,6 +29,10 @@
       "color": "white"
     },
     {
+      "led": 10,
+      "color": "white"
+    },
+    {
       "led": 14,
       "color": "white"
     },
@@ -50,6 +54,10 @@
     },
     {
       "led": 39,
+      "color": "white"
+    },
+    {
+      "led": 30,
       "color": "white"
     },
     {

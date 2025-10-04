@@ -2,7 +2,8 @@
 
 # Remove virtual environment first
 if [[ "$1" == "-r" ]]; then
-    rm -rf venv
+    rm -r venv
+    rm -r src/__pycache__
     shift  # Remove -r from arguments
 
 fi
