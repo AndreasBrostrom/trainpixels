@@ -33,7 +33,7 @@ Example:
 
 ## Track & Event Files
 - Place track files in `src/tracks.d/` (see `track_01.json`, `track_02.json` for format)
-- Supported `~/.config/trainpixels/tracks.d/` or `~/Deaktop/tracks.d/`
+- Supported `~/.config/trainpixels/tracks.d/` or `~/Desktop/tracks.d/`
 - Place event files in `src/utils.d/`
 - Supported `~/.config/trainpixels/utils.d/` or `~/Desktop/utils.d/`
 
