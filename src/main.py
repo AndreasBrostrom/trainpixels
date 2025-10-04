@@ -42,11 +42,15 @@ RANDOM_UTILS: list[UtilsType] = []
 
 
 def fetch_config() -> ConfigType:
+    desktop_config = os.path.join(os.path.expanduser(
+        "~"), "Desktop", "config.json")
     home_config = os.path.join(os.path.expanduser(
         "~"), ".config", "trailpixels", "config.json")
     local_config = os.path.join(SCRIPT_ROOT, "config.json")
     config_path = None
-    if os.path.exists(local_config):
+    if os.path.exists(desktop_config):
+        config_path = desktop_config
+    elif os.path.exists(local_config):
         config_path = local_config
     elif os.path.exists(home_config):
         config_path = home_config
@@ -88,7 +92,7 @@ TRACK_PIXEL_LENGTH = config["track_pixel_length"]
 UTIL_PIXEL_LENGTH = config["util_pixel_length"]
 TRACK_PIN = config["track_pin"]
 UTIL_PIN = config["util_pin"]
-STATUS_UTIL_LED = config.get("STATUS_UTIL_LED", 0)
+STATUS_UTIL_LED = config["status_util_led"]
 BRIGHTNESS = config["brightness"]
 TRACK_SPEED_MODIFIER = config["track_speed_modifier"]
 RANDOM_UTIL_TRIGGER_CHANCE = config["random_util_trigger_chance"]
@@ -241,13 +245,25 @@ def boot_startup_sequence():
 
 def track_build_init(queue) -> None:
     # This function build all the tracks from json files from tracks.d folder
-    for filename in os.listdir(os.path.join(SCRIPT_ROOT, "tracks.d")):
-        if filename.endswith(".json"):
-            with open(os.path.join(SCRIPT_ROOT, "tracks.d", filename), 'r') as f:
-                track = json.load(f)
-                TRACKS.append(track)
+    # Check multiple locations for tracks.d folder
+    tracks_dirs = [
+        os.path.join(SCRIPT_ROOT, "tracks.d"),
+        os.path.join(os.path.expanduser("~"), ".config", "trailpixels", "tracks.d"),
+        os.path.join(os.path.expanduser("~"), "Desktop", "tracks.d")
+    ]
+    
+    for tracks_dir in tracks_dirs:
+        if os.path.exists(tracks_dir):
+            print(f"  Loading tracks from: {tracks_dir}")
+            for filename in os.listdir(tracks_dir):
+                if filename.endswith(".json"):
+                    with open(os.path.join(tracks_dir, filename), 'r') as f:
+                        track = json.load(f)
+                        TRACKS.append(track)
+    
     if len(TRACKS) == 0:
-        print("  \033[91mWARNING: No tracks found in tracks.d folder exiting\033[0m")
+        print("  \033[91mWARNING: No tracks found in any tracks.d folder exiting\033[0m")
+        print(f"  Searched locations: {', '.join(tracks_dirs)}")
         sys.exit(1)
 
     queue.put(TRACKS)
@@ -257,15 +273,26 @@ def util_build_init(queue) -> None:
     try:
         all_utils = []
         
-        # First, load all utils
-        for filename in os.listdir(os.path.join(SCRIPT_ROOT, "utils.d")):
-            if filename.endswith(".json"):
-                with open(os.path.join(SCRIPT_ROOT, "utils.d", filename), 'r') as f:
-                    util = json.load(f)
-                    all_utils.append(util)
+        # Check multiple locations for utils.d folder
+        utils_dirs = [
+            os.path.join(SCRIPT_ROOT, "utils.d"),
+            os.path.join(os.path.expanduser("~"), ".config", "trailpixels", "utils.d"),
+            os.path.join(os.path.expanduser("~"), "Desktop", "utils.d")
+        ]
+        
+        # First, load all utils from all available directories
+        for utils_dir in utils_dirs:
+            if os.path.exists(utils_dir):
+                print(f"  Loading utils from: {utils_dir}")
+                for filename in os.listdir(utils_dir):
+                    if filename.endswith(".json"):
+                        with open(os.path.join(utils_dir, filename), 'r') as f:
+                            util = json.load(f)
+                            all_utils.append(util)
 
         if len(all_utils) == 0:
-            print("  \033[91mWARNING: No utils found in utils.d folder\033[0m")
+            print("  \033[91mWARNING: No utils found in any utils.d folder\033[0m")
+            print(f"  Searched locations: {', '.join(utils_dirs)}")
             queue.put(([], [], []))  # Return empty lists for all three categories
             return
 
