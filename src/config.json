@@ -15,8 +15,8 @@
     "yellow": [255, 255, 0, 0.5],
     "purple": [128, 0, 128, 0.5],
     "off": [0, 0, 0, 0.5],
-    "status_indicator_green": [0, 255, 0, 0.1],
-    "status_indicator_yellow": [255, 255, 0, 0.1],
-    "status_indicator_red": [255, 0, 0, 0.1]
+    "status_indicator_green": [0, 255, 0, 0.3],
+    "status_indicator_yellow": [255, 255, 0, 0.3],
+    "status_indicator_red": [255, 0, 0, 0.3]
   }
 }
