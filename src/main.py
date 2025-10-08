@@ -511,79 +511,8 @@ def get_track_by_id(track_id: str) -> TrackType | None:
     return None
 
 
-def run_random_track() -> int:
-    try:
-        print("\n\033[1mPicking track\033[0m")
-
-        track_config = get_random_track()
-
-        print(f"  Selected track: {track_config.get('name', 'Unknown')} ({track_config.get('id', 'Unknown')})")
-
-        # Initialize path led path
-        track_path = track_config.get('track_path', [])
-        track_positions = get_track_path(track_path)
-        utils_count = count_track_utils(track_path)
-
-        print(f"  Path:      {track_positions}")
-        print(f"  Utils:     {utils_count} util(s) will be triggered")
-        print(f"  Speed:     {track_config.get('speed', 1)} x {TRACK_SPEED_MODIFIER} modifier")
-        print(f"  ---")
-
-        # Enabling track
-        print(f"  Enabling track LED", end="")
-        for i in track_config.get('track_path', []):
-            track = -1
-
-            if isinstance(i, list) and len(i) > 0:
-                track = i[0]
-            else:
-                track = i
-
-            if track != -1:
-                print(f" {track}", end="")
-                set_t_led(track, "white", show=False)
-        print("")
-        t_pixels.show()
-
-        # Travel the track
-        for i in track_config['track_path']:
-            track = -1
-
-            if isinstance(i, list) and len(i) > 0:
-                track = i[0]
-                track_util = i[1] if len(i) > 1 else None
-            else:
-                track = i
-                track_util = None
-
-            # Trigger any utils for this step
-            if track != -1:
-                print(f"  Traveling to track LED {track}")
-                set_t_led(track, "red", show=True)
-            else:
-                print(f"  Traveling is paused and waiting {track}")
-
-            # Execute any utils for this step
-            if track_util:
-                # Handle both single util and list of utils uniformly
-                utils_to_run = track_util if isinstance(track_util, list) else [track_util]
-
-                for util_id in utils_to_run:
-                    if util_id:  # Skip empty/None entries
-                        run_util_by_id(util_id)
-
-            wait(10 * TRACK_SPEED_MODIFIER)
-
-            # Turn off previous LED (simulate movement)
-            if track != -1:
-                set_t_led(track, "off", show=True)
-
-    except KeyboardInterrupt:
-        exit_gracefully()
-    except Exception as e:
-        print(f"  \033[91mERROR: main track loop: {e}\033[0m")
-
-    return 0
+def run():
+    pass
 
 
 def main():
@@ -608,7 +537,7 @@ def main():
         # MAIN LOOP
         print("\nStarting main track loop")
         while True:
-            run_random_track()
+            run()
 
     except KeyboardInterrupt:
         exit_gracefully()
