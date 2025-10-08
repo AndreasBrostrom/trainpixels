@@ -1,0 +1,7 @@
+# Build Requirements (extends requirements.txt)
+# Run: pip install -r requirements.txt -r requirements-build.txt
+
+# Binary building
+pyinstaller>=5.0.0
+
+# Optional: UPX for binary compression (install separately: sudo apt install upx)
