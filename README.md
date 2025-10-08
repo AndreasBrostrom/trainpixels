@@ -3,9 +3,10 @@
 ## Overview
 TrainPixels are a track simulation built with python to simulate a "Retro Swedish Trainway Tacking Wall" previously used by the Swedish Railway Institution; Banverket (today Trafikverket). The script uses NeoPixel (WS2812) LED strips and is built for a RaspberryPie. It also support local debugging without the hardware by using dummy functions.
 
-## Configuration
+## Configuration Examples
+The configs are read from `$scriptRoot/src/` or `~/.config/trainpixels/`.
 
-Example:
+### config.json
 ```json
 {
   "TRACK_PIXEL_LENGTH": 42,
@@ -31,6 +32,32 @@ Example:
 }
 ```
 
+### tracks.d/sandviken_1.json
+```json 
+{
+  "id": "sandviken_1",
+  "name": "Sandviken to Gävle",
+  "track_path": [[34, ["track_arrow_26"]], 35, [36, "track_arrow_26_off"], 24, 18, 19],
+  "speed": 1
+}
+```
+
+### utils.d/track_arrow_26.json
+```json 
+{
+  "id": "track_arrow_26",
+  "name": "Util Lights - West > Arrow",
+  "enabled_on_init": false,
+  "is_random": false,
+  "utils": [
+    {
+      "led": 26,
+      "color": "white"
+    }
+  ]
+}
+```
+
 ## Track & Event Files
 - Place track files in `src/tracks.d/` (see `track_01.json`, `track_02.json` for format)
 - Supported `~/.config/trainpixels/tracks.d/` or `~/Desktop/tracks.d/`
@@ -39,6 +66,26 @@ Example:
 
 ## Usage
 1. run `start.sh` 
+ 
+## Systemd install & start example
+
+If you want TrainPixels to run as a systemd service, copy the provided service file to the system directory, reload systemd and enable the service. Example commands (run on the target machine):
+
+```bash
+# Copy the service file (adjust path if you placed the repo elsewhere)
+sudo cp utils/trainpixels.service /etc/systemd/system/trainpixels.service
+sudo chmod 644 /etc/systemd/system/trainpixels.service
+
+# Reload systemd to pick up the new unit
+sudo systemctl daemon-reload
+
+# Enable and start the service
+sudo systemctl enable --now trainpixels.service
+
+# View status and logs
+sudo systemctl status trainpixels.service
+journalctl -u trainpixels.service -f
+```
 
 ## Troubleshooting
 - Ensure your config and track/event files are valid JSON
