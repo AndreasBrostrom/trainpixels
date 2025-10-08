@@ -42,18 +42,17 @@ RANDOM_UTILS: list[UtilsType] = []
 
 
 def fetch_config() -> ConfigType:
-    desktop_config = os.path.join(os.path.expanduser(
-        "~"), "Desktop", "config.json")
+    # Priority order: ~/.config/trainpixels/ > ~/Desktop/ > src/ (test data)
     home_config = os.path.join(os.path.expanduser(
-        "~"), ".config", "trailpixels", "config.json")
+        "~"), ".config", "trainpixels", "config.json")
     local_config = os.path.join(SCRIPT_ROOT, "config.json")
     config_path = None
-    if os.path.exists(desktop_config):
-        config_path = desktop_config
+
+    if os.path.exists(home_config):
+        config_path = home_config
     elif os.path.exists(local_config):
         config_path = local_config
-    elif os.path.exists(home_config):
-        config_path = home_config
+    print(f"Using config from: {config_path}")
     if config_path:
         try:
             with open(config_path, 'r') as f:
@@ -245,22 +244,28 @@ def boot_startup_sequence():
 
 def track_build_init(queue) -> None:
     # This function build all the tracks from json files from tracks.d folder
-    # Check multiple locations for tracks.d folder
+    # Priority order: ~/.config/trainpixels/ > ~/Desktop/ > src/ (test data)
     tracks_dirs = [
-        os.path.join(SCRIPT_ROOT, "tracks.d"),
-        os.path.join(os.path.expanduser("~"), ".config", "trailpixels", "tracks.d"),
-        os.path.join(os.path.expanduser("~"), "Desktop", "tracks.d")
+        os.path.join(os.path.expanduser("~"), ".config", "trainpixels", "tracks.d"),
+        os.path.join(SCRIPT_ROOT, "tracks.d")
     ]
-    
+
+    # Use the first directory that exists (priority order)
+    selected_tracks_dir = None
     for tracks_dir in tracks_dirs:
-        if os.path.exists(tracks_dir):
-            print(f"  Loading tracks from: {tracks_dir}")
-            for filename in os.listdir(tracks_dir):
-                if filename.endswith(".json"):
-                    with open(os.path.join(tracks_dir, filename), 'r') as f:
-                        track = json.load(f)
-                        TRACKS.append(track)
-    
+        if os.path.exists(tracks_dir) and os.listdir(tracks_dir):
+            selected_tracks_dir = tracks_dir
+            break
+
+    if selected_tracks_dir:
+        print(f"  Loading tracks tracks from: {selected_tracks_dir}")
+
+        for filename in os.listdir(selected_tracks_dir):
+            if filename.endswith(".json"):
+                with open(os.path.join(selected_tracks_dir, filename), 'r') as f:
+                    track = json.load(f)
+                    TRACKS.append(track)
+
     if len(TRACKS) == 0:
         print("  \033[91mWARNING: No tracks found in any tracks.d folder exiting\033[0m")
         print(f"  Searched locations: {', '.join(tracks_dirs)}")
@@ -269,26 +274,32 @@ def track_build_init(queue) -> None:
     queue.put(TRACKS)
     print(f"  {len(TRACKS)} tracks have been detected and added")
 
+
 def util_build_init(queue) -> None:
     try:
         all_utils = []
-        
-        # Check multiple locations for utils.d folder
+
+        # Priority order: ~/.config/trainpixels/ > ~/Desktop/ > src/ (test data)
         utils_dirs = [
-            os.path.join(SCRIPT_ROOT, "utils.d"),
-            os.path.join(os.path.expanduser("~"), ".config", "trailpixels", "utils.d"),
-            os.path.join(os.path.expanduser("~"), "Desktop", "utils.d")
+            os.path.join(os.path.expanduser("~"), ".config", "trainpixels", "utils.d"),
+            os.path.join(SCRIPT_ROOT, "utils.d")
         ]
-        
-        # First, load all utils from all available directories
+
+        # Use the first directory that exists (priority order)
+        selected_utils_dir = None
         for utils_dir in utils_dirs:
-            if os.path.exists(utils_dir):
-                print(f"  Loading utils from: {utils_dir}")
-                for filename in os.listdir(utils_dir):
-                    if filename.endswith(".json"):
-                        with open(os.path.join(utils_dir, filename), 'r') as f:
-                            util = json.load(f)
-                            all_utils.append(util)
+            if os.path.exists(utils_dir) and os.listdir(utils_dir):
+                selected_utils_dir = utils_dir
+                break
+
+        if selected_utils_dir:
+            print(f"  Loading utils from: {selected_utils_dir}")
+
+            for filename in os.listdir(selected_utils_dir):
+                if filename.endswith(".json"):
+                    with open(os.path.join(selected_utils_dir, filename), 'r') as f:
+                        util = json.load(f)
+                        all_utils.append(util)
 
         if len(all_utils) == 0:
             print("  \033[91mWARNING: No utils found in any utils.d folder\033[0m")
@@ -359,6 +370,8 @@ def execute_init_utils():
         print("No initialization utils to execute.")
 
 # LED FUNCTIONS
+
+
 def set_t_led(led_index: int, color_name: str, show: bool = False) -> int:
     try:
         r, g, b, brightness = get_color(color_name)
@@ -436,7 +449,7 @@ def run_util_by_id(util_id: str) -> int:
             return 1
 
         print(f"  Running utility: {util.get('name', util_id)} [{util_id}]")
-        
+
         # Get the utils list from the utility
         utils_list = util.get('utils', [])
         if not utils_list:
@@ -446,16 +459,16 @@ def run_util_by_id(util_id: str) -> int:
         # Collect all LED changes and wait times
         led_changes_made = False
         total_wait_time = 0
-        
+
         for util_item in utils_list:
             # Get LED index and color
             led_index = util_item.get('led')
             color_name = util_item.get('color')
-            
+
             if led_index is None or color_name is None:
                 print(f"      \033[93mWARNING: Util item missing 'led' or 'color' property\033[0m")
                 continue
-            
+
             # Apply the LED change (but don't show yet)
             result = set_u_led(led_index, color_name, show=False)
             if result == 0:
@@ -463,26 +476,26 @@ def run_util_by_id(util_id: str) -> int:
                 led_changes_made = True
             else:
                 print(f"      \033[93mWARNING: Failed to set util LED {led_index}\033[0m")
-            
+
             # TODO: Handle other parameters like:
             # - blink: for blinking effects
             # - duration: how long to keep the LED on
             # - repeat: repeat the action N times
             # - fade: fade in/out effects
             # - brightness_override: custom brightness for this LED
-            
+
         # Show all changes at once
         if led_changes_made:
             print(f"    \033[2mEnabling util LEDs\033[0m")
             u_pixels.show()
-        
+
         # Wait for the total time if needed
         if total_wait_time > 0:
             print(f"    Waiting {total_wait_time}s for utility '{util_id}' to complete...")
             wait(total_wait_time)
             print(f"    Utility '{util_id}' completed after {total_wait_time}s wait")
         return 0
-            
+
     except Exception as e:
         print(f"    \033[91mERROR: Executing utility '{util_id}': {e}\033[0m")
         return 1
@@ -491,6 +504,7 @@ def run_util_by_id(util_id: str) -> int:
 # Track Functions
 def get_random_track() -> TrackType:
     return TRACKS[random.randint(0, len(TRACKS) - 1)]
+
 
 def get_track_by_id(track_id: str) -> TrackType | None:
     for track in TRACKS:
@@ -582,7 +596,7 @@ def main():
             f"  Pixels: {TRACK_PIXEL_LENGTH} on track, {UTIL_PIXEL_LENGTH} on utils")
         print(f"  Pin:    {TRACK_PIN} on track, {UTIL_PIN} on utils")
         print("")
-        
+
         set_u_led(STATUS_UTIL_LED, "status_indicator_yellow", show=True)
 
         boot_startup_sequence()
