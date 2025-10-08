@@ -11,6 +11,7 @@ class ConfigType(TypedDict):
     status_util_led: int
     brightness: float
     track_speed_modifier: float
+    max_concurrent_tracks: int
     random_util_trigger_chance: float
     color_table: dict
 
