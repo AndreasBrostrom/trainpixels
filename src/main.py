@@ -138,7 +138,7 @@ except Exception as error:
                            brightness=BRIGHTNESS, auto_write=False)
 
 
-# FUNCTIONS
+# INIT AND BOOT FUNCTIONS
 def boot_startup_sequence():
     global TRACKS
     global INIT_UTILS
@@ -369,9 +369,8 @@ def execute_init_utils():
     else:
         print("No initialization utils to execute.")
 
+
 # LED FUNCTIONS
-
-
 def set_t_led(led_index: int, color_name: str, show: bool = False) -> int:
     try:
         r, g, b, brightness = get_color(color_name)
@@ -401,7 +400,6 @@ def set_u_led(led_index: int, color_name: str, show: bool = False) -> int:
 
 
 # HELPER FUNCTIONS
-
 def exit_gracefully():
     print("\nLEDs turned off. Goodbye!")
     t_pixels.fill((0, 0, 0))
@@ -411,7 +409,7 @@ def exit_gracefully():
     sys.exit(0)
 
 
-def wait(time_in_seconds):
+def wait(time_in_seconds: float) -> int:
     try:
         time.sleep(time_in_seconds)
     except KeyboardInterrupt:
@@ -513,7 +511,6 @@ def get_track_by_id(track_id: str) -> TrackType | None:
     return None
 
 
-# Run functions
 def run_random_track() -> int:
     try:
         print("\n\033[1mPicking track\033[0m")
@@ -613,8 +610,6 @@ def main():
         while True:
             run_random_track()
 
-    except NotImplementedError:
-        print("Functionality not yet implemented.")
     except KeyboardInterrupt:
         exit_gracefully()
 
