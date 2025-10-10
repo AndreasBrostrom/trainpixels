@@ -7,7 +7,7 @@ if [[ "$1" == "-r" ]]; then
     shift  # Remove -r from arguments
 fi
 
-# Start
+# Setup virtual environment
 if [[ ! -d venv ]]; then
     echo "Creating virtual environment..."
     python3 -m venv venv
@@ -18,8 +18,14 @@ else
     source venv/bin/activate
 fi
 
-echo "Starting TrainPixels..."
+echo "Starting TrainPixels Controller..."
 echo "Press Ctrl+C to stop"
 
-# Run the main script
-python3 src/main.py "$@"
+# Check if sudo
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 
+   exit 1
+fi
+
+# Run the controller script
+python3 src/controller.py "$@"

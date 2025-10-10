@@ -3,3 +3,6 @@
 
 adafruit-blinka>=8.0.0
 adafruit-circuitpython-neopixel>=6.0.0
+
+# Numpad Controller Requirements
+evdev>=1.4.0

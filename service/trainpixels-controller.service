@@ -1,0 +1,26 @@
+[Unit]
+Description=TrainPixels Numpad Controller
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=simple
+User=root
+Group=input
+ExecStart=/usr/bin/python3 /home/andre/Repositories/trainpixels/src/controller.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONUNBUFFERED=1
+
+# Security settings (optional, can be commented out for debugging)
+# NoNewPrivileges=true
+# ProtectSystem=strict
+# ProtectHome=true
+# ReadWritePaths=/home/andre/.cache/trainpixels
+
+[Install]
+WantedBy=multi-user.target
