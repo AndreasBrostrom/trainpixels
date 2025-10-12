@@ -77,6 +77,8 @@ Description=TrainPixels Numpad Controller
 Documentation=https://github.com/AndreasBrostrom/trainpixels
 After=multi-user.target
 Wants=multi-user.target
+PartOf=trainpixels.service
+Before=trainpixels-main.service
 
 [Service]
 Type=simple
@@ -130,8 +132,9 @@ create_main_service() {
 [Unit]
 Description=TrainPixels Main Application
 Documentation=https://github.com/AndreasBrostrom/trainpixels
-After=multi-user.target
+After=multi-user.target trainpixels-controller.service trainpixels-controlcenter.service
 Wants=multi-user.target
+PartOf=trainpixels.service
 
 [Service]
 Type=simple
@@ -191,6 +194,8 @@ Description=TrainPixels Control Center
 Documentation=https://github.com/AndreasBrostrom/trainpixels
 After=multi-user.target
 Wants=multi-user.target
+PartOf=trainpixels.service
+Before=trainpixels-main.service
 
 [Service]
 Type=simple
@@ -237,6 +242,11 @@ Documentation=https://github.com/AndreasBrostrom/trainpixels
 After=multi-user.target
 Wants=multi-user.target
 
+# Require and order the child services
+Requires=trainpixels-controller.service trainpixels-controlcenter.service trainpixels-main.service
+After=trainpixels-controller.service trainpixels-controlcenter.service
+Before=trainpixels-main.service
+
 [Service]
 Type=oneshot
 RemainAfterExit=yes
@@ -244,14 +254,14 @@ User=root
 Group=root
 WorkingDirectory=$PROJECT_ROOT
 
-# Start all TrainPixels services
-ExecStart=/bin/bash -c 'systemctl start trainpixels-controller trainpixels-main trainpixels-controlcenter'
+# Start services in proper order: controller and controlcenter first, then main
+ExecStart=/bin/bash -c 'systemctl start trainpixels-controller trainpixels-controlcenter && systemctl start trainpixels-main'
 
-# Stop all TrainPixels services
-ExecStop=/bin/bash -c 'systemctl stop trainpixels-controlcenter trainpixels-main trainpixels-controller'
+# Stop all TrainPixels services in reverse order
+ExecStop=/bin/bash -c 'systemctl stop trainpixels-main && systemctl stop trainpixels-controlcenter trainpixels-controller'
 
 # Reload all TrainPixels services
-ExecReload=/bin/bash -c 'systemctl reload-or-restart trainpixels-controller trainpixels-main trainpixels-controlcenter'
+ExecReload=/bin/bash -c 'systemctl reload-or-restart trainpixels-controller trainpixels-controlcenter && systemctl reload-or-restart trainpixels-main'
 
 StandardOutput=journal
 StandardError=journal
@@ -319,62 +329,34 @@ main() {
         echo "  sudo systemctl daemon-reload"
         echo "  sudo systemctl enable --now trainpixels"
         echo
-        echo -e "${BLUE}Master Service Commands:${NC}"
-        echo "  # Start all TrainPixels services"
+        echo -e "${BLUE}TrainPixels Service Commands:${NC}"
+        echo -e "  ${YELLOW}Start all services in proper order:${NC}"
         echo "  sudo systemctl start trainpixels"
         echo
-        echo "  # Stop all TrainPixels services"
+        echo -e "  ${YELLOW}Stop all services:${NC}"
         echo "  sudo systemctl stop trainpixels"
         echo
-        echo "  # Restart all TrainPixels services"
+        echo -e "  ${YELLOW}Restart all services:${NC}"
         echo "  sudo systemctl restart trainpixels"
         echo
-        echo "  # Reload all TrainPixels services"
-        echo "  sudo systemctl reload trainpixels"
+        echo -e "  ${YELLOW}Enable auto-start at boot:${NC}"
+        echo "  sudo systemctl enable trainpixels"
+        echo
+        echo -e "  ${YELLOW}Check status:${NC}"
+        echo "  sudo systemctl status trainpixels"
+        echo
+        echo -e "  ${YELLOW}Follow logs:${NC}"
+        echo "  sudo journalctl -u trainpixels -f"
         echo
         echo -e "${BLUE}Control Center Commands:${NC}"
-        echo "  # Control center will read numpad input and:"
-        echo "  #   * = restart all services"
-        echo "  #   1 = start trainpixels-main"
-        echo "  #   2 = start trainpixels-controller"
-        echo "  #   3 = stop all services"
-        echo "  #   ** start = reboot system"
+        echo -e "  ${YELLOW}Control center will read numpad input and:${NC}"
+        echo "    * = restart all services"
+        echo "    1 = start trainpixels-main"
+        echo "    2 = start trainpixels-controller"
+        echo "    3 = stop all services"
+        echo "    ** start = reboot system"
         echo
-        echo -e "${BLUE}Service Management Examples:${NC}"
-        echo
-        echo -e "${YELLOW}Start services:${NC}"
-        echo "  sudo systemctl start trainpixels-controller"
-        echo "  sudo systemctl start trainpixels-main"
-        echo
-        echo -e "${YELLOW}Stop services:${NC}"
-        echo "  sudo systemctl stop trainpixels-controller"
-        echo "  sudo systemctl stop trainpixels-main"
-        echo
-        echo -e "${YELLOW}Restart services:${NC}"
-        echo "  sudo systemctl restart trainpixels-controller"
-        echo "  sudo systemctl restart trainpixels-main"
-        echo
-        echo -e "${YELLOW}Reload service configuration:${NC}"
-        echo "  sudo systemctl reload-or-restart trainpixels-controller"
-        echo "  sudo systemctl reload-or-restart trainpixels-main"
-        echo
-        echo -e "${YELLOW}Enable services (auto-start on boot):${NC}"
-        echo "  sudo systemctl enable trainpixels-controller"
-        echo "  sudo systemctl enable trainpixels-main"
-        echo
-        echo -e "${YELLOW}Disable services (prevent auto-start):${NC}"
-        echo "  sudo systemctl disable trainpixels-controller"
-        echo "  sudo systemctl disable trainpixels-main"
-        echo
-        echo -e "${YELLOW}Check status:${NC}"
-        echo "  sudo systemctl status trainpixels-controller"
-        echo "  sudo systemctl status trainpixels-main"
-        echo
-        echo -e "${YELLOW}View logs:${NC}"
-        echo "  # Follow live logs"
-        echo "  sudo journalctl -u trainpixels-controller -f"
-        echo "  sudo journalctl -u trainpixels-main -f"
-        echo
+
     else
         echo "To install services manually:"
         echo "  sudo cp $SERVICE_DIR/*.service /etc/systemd/system/"
@@ -385,30 +367,26 @@ main() {
         echo "  mkdir -p ~/.config/systemd/user"
         echo "  cp $SERVICE_DIR/*.service ~/.config/systemd/user/"
         echo "  systemctl --user daemon-reload"
-        echo "  systemctl --user enable --now trainpixels-controller"
-        echo "  systemctl --user enable --now trainpixels-main"
+        echo "  systemctl --user enable --now trainpixels"
         echo
-        echo -e "${BLUE}User Service Management Examples:${NC}"
+        echo -e "${BLUE}User Service Commands:${NC}"
+        echo -e "  ${YELLOW}Start all services in proper order:${NC}"
+        echo "  systemctl --user start trainpixels"
         echo
-        echo -e "${YELLOW}Start/Stop/Restart user services:${NC}"
-        echo "  systemctl --user start trainpixels-controller"
-        echo "  systemctl --user stop trainpixels-controller"
-        echo "  systemctl --user restart trainpixels-controller"
-        echo "  systemctl --user start trainpixels-main"
-        echo "  systemctl --user stop trainpixels-main"
-        echo "  systemctl --user restart trainpixels-main"
+        echo -e "  ${YELLOW}Stop all services:${NC}"
+        echo "  systemctl --user stop trainpixels"
         echo
-        echo -e "${YELLOW}Enable/Disable user services:${NC}"
-        echo "  systemctl --user enable trainpixels-controller"
-        echo "  systemctl --user disable trainpixels-controller"
-        echo "  systemctl --user enable trainpixels-main"
-        echo "  systemctl --user disable trainpixels-main"
+        echo -e "  ${YELLOW}Restart all services:${NC}"
+        echo "  systemctl --user restart trainpixels"
         echo
-        echo -e "${YELLOW}User service logs:${NC}"
-        echo "  journalctl --user -u trainpixels-controller -f"
-        echo "  journalctl --user -u trainpixels-main -f"
-        echo "  journalctl --user -u trainpixels-controller -n 50"
-        echo "  journalctl --user -u trainpixels-main -n 50"
+        echo -e "  ${YELLOW}Enable auto-start at boot:${NC}"
+        echo "  systemctl --user enable trainpixels"
+        echo
+        echo -e "  ${YELLOW}Check status:${NC}"
+        echo "  systemctl --user status trainpixels"
+        echo
+        echo -e "  ${YELLOW}Follow logs:${NC}"
+        echo "  journalctl --user -u trainpixels -f"
     fi
 }
 
