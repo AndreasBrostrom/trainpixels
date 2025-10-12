@@ -18,7 +18,7 @@ else
     source venv/bin/activate
 fi
 
-echo "Starting TrainPixels Controller..."
+echo "Starting TrainPixels Controlcenter..."
 echo "Press Ctrl+C to stop"
 
 # Check if sudo
@@ -27,5 +27,5 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-# Run the controller script
-python3 src/main_controller.py "$@"
+# Run the controlcenter script
+python3 src/main_controlcenter.py "$@"

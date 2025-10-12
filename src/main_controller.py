@@ -41,7 +41,7 @@ def get_user_cache_dir():
         return os.path.expanduser("~/.cache/trainpixels")
 
 CACHE_DIR = get_user_cache_dir()
-CACHE_FILE = os.path.join(CACHE_DIR, "numpad_input.txt")
+CACHE_FILE = os.path.join(CACHE_DIR, "numpad_input")
 LOCK_FILE = os.path.join(CACHE_DIR, "numpad_input.lock")
 LOG_FILE = os.path.join(CACHE_DIR, "controller.log")
 

@@ -167,6 +167,106 @@ EOF
     return 0
 }
 
+# Function to create TrainPixels Control Center service
+create_controlcenter_service() {
+    local service_name="trainpixels-controlcenter"
+    local service_file="$SERVICE_DIR/${service_name}.service"
+    local controlcenter_script="$PROJECT_ROOT/start-controlcenter.sh"
+    
+    echo -e "${YELLOW}Creating $service_name service...${NC}"
+    
+    # Check if control center script exists
+    if [[ ! -f "$controlcenter_script" ]]; then
+        echo -e "${RED}ERROR: Control center script not found at $controlcenter_script${NC}"
+        return 1
+    fi
+    
+    # Make control center script executable
+    chmod +x "$controlcenter_script"
+    
+    # Create the service file
+    cat > "$service_file" << EOF
+[Unit]
+Description=TrainPixels Control Center
+Documentation=https://github.com/AndreasBrostrom/trainpixels
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=$controlcenter_script
+WorkingDirectory=$PROJECT_ROOT
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONUNBUFFERED=1
+Environment=SUDO_USER=$CURRENT_USER
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$CURRENT_USER_HOME/.cache/trainpixels
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    echo -e "${GREEN}✓ Created $service_file${NC}"
+    return 0
+}
+
+# Function to create TrainPixels Master service (manages all services)
+create_master_service() {
+    local service_name="trainpixels"
+    local service_file="$SERVICE_DIR/${service_name}.service"
+    
+    echo -e "${YELLOW}Creating $service_name master service...${NC}"
+    
+    # Create the service file
+    cat > "$service_file" << EOF
+[Unit]
+Description=TrainPixels Master Service
+Documentation=https://github.com/AndreasBrostrom/trainpixels
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+Group=root
+WorkingDirectory=$PROJECT_ROOT
+
+# Start all TrainPixels services
+ExecStart=/bin/bash -c 'systemctl start trainpixels-controller trainpixels-main trainpixels-controlcenter'
+
+# Stop all TrainPixels services
+ExecStop=/bin/bash -c 'systemctl stop trainpixels-controlcenter trainpixels-main trainpixels-controller'
+
+# Reload all TrainPixels services
+ExecReload=/bin/bash -c 'systemctl reload-or-restart trainpixels-controller trainpixels-main trainpixels-controlcenter'
+
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    echo -e "${GREEN}✓ Created $service_file${NC}"
+    return 0
+}
+
 # Main execution
 main() {
     echo -e "${BLUE}Creating systemd services...${NC}"
@@ -185,19 +285,60 @@ main() {
         exit 1
     fi
     
+    if create_controlcenter_service; then
+        echo -e "${GREEN}✓ Control center service created${NC}"
+    else
+        echo -e "${RED}✗ Failed to create control center service${NC}"
+        exit 1
+    fi
+    
+    if create_master_service; then
+        echo -e "${GREEN}✓ Master service created${NC}"
+    else
+        echo -e "${RED}✗ Failed to create master service${NC}"
+        exit 1
+    fi
+    
     echo
     echo -e "${GREEN}=== Service Files Created ===${NC}"
     echo
     echo "Service files location: $SERVICE_DIR"
-    echo "  • trainpixels-controller.service - Numpad input controller"
-    echo "  • trainpixels-main.service       - Main TrainPixels application"
+    echo "  • trainpixels.service               - Master service (controls all other services)"
+    echo "  • trainpixels-controller.service    - Numpad input controller (main_controller.py)"
+    echo "  • trainpixels-main.service          - Main TrainPixels application (main.py)"
+    echo "  • trainpixels-controlcenter.service - Control center (main_controlcenter.py)"
+    echo
+    echo -e "${BLUE}Available Python Scripts:${NC}"
+    echo "  • src/main_controller.py    - Captures numpad input and writes to cache"
+    echo "  • src/main.py               - Main TrainPixels application logic"
+    echo "  • src/main_controlcenter.py - Reads cache and manages services via systemctl"
     echo
     
     if [[ "$SERVICE_DIR" == "/etc/systemd/system" ]]; then
         echo "Services are ready to use:"
         echo "  sudo systemctl daemon-reload"
-        echo "  sudo systemctl enable --now trainpixels-controller"
-        echo "  sudo systemctl enable --now trainpixels-main"
+        echo "  sudo systemctl enable --now trainpixels"
+        echo
+        echo -e "${BLUE}Master Service Commands:${NC}"
+        echo "  # Start all TrainPixels services"
+        echo "  sudo systemctl start trainpixels"
+        echo
+        echo "  # Stop all TrainPixels services"
+        echo "  sudo systemctl stop trainpixels"
+        echo
+        echo "  # Restart all TrainPixels services"
+        echo "  sudo systemctl restart trainpixels"
+        echo
+        echo "  # Reload all TrainPixels services"
+        echo "  sudo systemctl reload trainpixels"
+        echo
+        echo -e "${BLUE}Control Center Commands:${NC}"
+        echo "  # Control center will read numpad input and:"
+        echo "  #   * = restart all services"
+        echo "  #   1 = start trainpixels-main"
+        echo "  #   2 = start trainpixels-controller"
+        echo "  #   3 = stop all services"
+        echo "  #   ** start = reboot system"
         echo
         echo -e "${BLUE}Service Management Examples:${NC}"
         echo
@@ -208,6 +349,14 @@ main() {
         echo -e "${YELLOW}Stop services:${NC}"
         echo "  sudo systemctl stop trainpixels-controller"
         echo "  sudo systemctl stop trainpixels-main"
+        echo
+        echo -e "${YELLOW}Restart services:${NC}"
+        echo "  sudo systemctl restart trainpixels-controller"
+        echo "  sudo systemctl restart trainpixels-main"
+        echo
+        echo -e "${YELLOW}Reload service configuration:${NC}"
+        echo "  sudo systemctl reload-or-restart trainpixels-controller"
+        echo "  sudo systemctl reload-or-restart trainpixels-main"
         echo
         echo -e "${YELLOW}Enable services (auto-start on boot):${NC}"
         echo "  sudo systemctl enable trainpixels-controller"
@@ -230,8 +379,7 @@ main() {
         echo "To install services manually:"
         echo "  sudo cp $SERVICE_DIR/*.service /etc/systemd/system/"
         echo "  sudo systemctl daemon-reload"
-        echo "  sudo systemctl enable --now trainpixels-controller"
-        echo "  sudo systemctl enable --now trainpixels-main"
+        echo "  sudo systemctl enable --now trainpixels"
         echo
         echo "Or use as user services:"
         echo "  mkdir -p ~/.config/systemd/user"
@@ -242,11 +390,13 @@ main() {
         echo
         echo -e "${BLUE}User Service Management Examples:${NC}"
         echo
-        echo -e "${YELLOW}Start/Stop user services:${NC}"
+        echo -e "${YELLOW}Start/Stop/Restart user services:${NC}"
         echo "  systemctl --user start trainpixels-controller"
         echo "  systemctl --user stop trainpixels-controller"
+        echo "  systemctl --user restart trainpixels-controller"
         echo "  systemctl --user start trainpixels-main"
         echo "  systemctl --user stop trainpixels-main"
+        echo "  systemctl --user restart trainpixels-main"
         echo
         echo -e "${YELLOW}Enable/Disable user services:${NC}"
         echo "  systemctl --user enable trainpixels-controller"
@@ -266,22 +416,50 @@ main() {
 case "${1:-}" in
     "controller")
         echo "Creating only controller service..."
-        create_controller_service
-        echo -e "${GREEN}Controller service created at: $SERVICE_DIR/trainpixels-controller.service${NC}"
+        if create_controller_service; then
+            echo -e "${GREEN}Controller service created at: $SERVICE_DIR/trainpixels-controller.service${NC}"
+        else
+            echo -e "${RED}Failed to create controller service${NC}"
+            exit 1
+        fi
         ;;
     "main")
         echo "Creating only main service..."
-        create_main_service
-        echo -e "${GREEN}Main service created at: $SERVICE_DIR/trainpixels-main.service${NC}"
+        if create_main_service; then
+            echo -e "${GREEN}Main service created at: $SERVICE_DIR/trainpixels-main.service${NC}"
+        else
+            echo -e "${RED}Failed to create main service${NC}"
+            exit 1
+        fi
+        ;;
+    "controlcenter")
+        echo "Creating only control center service..."
+        if create_controlcenter_service; then
+            echo -e "${GREEN}Control center service created at: $SERVICE_DIR/trainpixels-controlcenter.service${NC}"
+        else
+            echo -e "${RED}Failed to create control center service${NC}"
+            exit 1
+        fi
+        ;;
+    "master")
+        echo "Creating only master service..."
+        if create_master_service; then
+            echo -e "${GREEN}Master service created at: $SERVICE_DIR/trainpixels.service${NC}"
+        else
+            echo -e "${RED}Failed to create master service${NC}"
+            exit 1
+        fi
         ;;
     "")
         main
         ;;
     *)
-        echo "Usage: $0 [controller|main]"
-        echo "  controller - Create only the numpad controller service"
-        echo "  main       - Create only the main application service"
-        echo "  (no args)  - Create both services"
+        echo "Usage: $0 [controller|main|controlcenter|master]"
+        echo "  controller    - Create only the numpad controller service (main_controller.py)"
+        echo "  main          - Create only the main application service (main.py)"
+        echo "  controlcenter - Create only the control center service (main_controlcenter.py)"
+        echo "  master        - Create only the master service (controls all other services)"
+        echo "  (no args)     - Create all services"
         exit 1
         ;;
 esac
