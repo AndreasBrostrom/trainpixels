@@ -84,7 +84,7 @@ Before=trainpixels-main.service
 Type=simple
 User=root
 Group=input
-ExecStart=$PROJECT_ROOT/start-controller.sh
+ExecStart=/bin/bash $PROJECT_ROOT/start-controller.sh
 WorkingDirectory=$PROJECT_ROOT
 Restart=always
 RestartSec=5
@@ -140,7 +140,7 @@ PartOf=trainpixels.service
 Type=simple
 User=$CURRENT_USER
 Group=$CURRENT_USER
-ExecStart=$PROJECT_ROOT/start.sh
+ExecStart=/bin/bash $PROJECT_ROOT/start.sh
 WorkingDirectory=$PROJECT_ROOT
 Restart=always
 RestartSec=10
@@ -174,7 +174,6 @@ EOF
 create_controlcenter_service() {
     local service_name="trainpixels-controlcenter"
     local service_file="$SERVICE_DIR/${service_name}.service"
-    local controlcenter_script="$PROJECT_ROOT/start-controlcenter.sh"
     
     echo -e "${YELLOW}Creating $service_name service...${NC}"
     
@@ -201,7 +200,7 @@ Before=trainpixels-main.service
 Type=simple
 User=root
 Group=root
-ExecStart=$controlcenter_script
+ExecStart=/bin/bash $PROJECT_ROOT/start-controlcenter.sh
 WorkingDirectory=$PROJECT_ROOT
 Restart=always
 RestartSec=10
