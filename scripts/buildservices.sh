@@ -97,9 +97,13 @@ Environment=SUDO_USER=$CURRENT_USER
 
 # Security settings
 NoNewPrivileges=true
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=true
+ReadWritePaths=$PROJECT_ROOT
+ReadWritePaths=$CURRENT_USER_HOME/trainpixels
+ReadWritePaths=$CURRENT_USER_HOME/.config/trainpixels
 ReadWritePaths=$CURRENT_USER_HOME/.cache/trainpixels
+ReadWritePaths=$CURRENT_USER_HOME/Desktop
 PrivateTmp=true
 
 [Install]
@@ -154,10 +158,11 @@ Environment=USER=$CURRENT_USER
 
 # Security settings
 NoNewPrivileges=true
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=false
 ReadWritePaths=$PROJECT_ROOT
-ReadWritePaths=$CURRENT_USER_HOME/.config/trailpixels
+ReadWritePaths=$CURRENT_USER_HOME/trainpixels
+ReadWritePaths=$CURRENT_USER_HOME/.config/trainpixels
 ReadWritePaths=$CURRENT_USER_HOME/.cache/trainpixels
 ReadWritePaths=$CURRENT_USER_HOME/Desktop
 PrivateTmp=true
@@ -201,7 +206,7 @@ Before=trainpixels-main.service
 Type=simple
 User=root
 Group=root
-ExecStart=$controlcenter_script
+ExecStart=/bin/bash $controlcenter_script
 WorkingDirectory=$PROJECT_ROOT
 Restart=always
 RestartSec=10
@@ -214,9 +219,13 @@ Environment=SUDO_USER=$CURRENT_USER
 
 # Security settings
 NoNewPrivileges=true
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=true
+ReadWritePaths=$PROJECT_ROOT
+ReadWritePaths=$CURRENT_USER_HOME/trainpixels
+ReadWritePaths=$CURRENT_USER_HOME/.config/trainpixels
 ReadWritePaths=$CURRENT_USER_HOME/.cache/trainpixels
+ReadWritePaths=$CURRENT_USER_HOME/Desktop
 PrivateTmp=true
 
 [Install]
@@ -351,9 +360,6 @@ main() {
         echo -e "${BLUE}Control Center Commands:${NC}"
         echo -e "  ${YELLOW}Control center will read numpad input and:${NC}"
         echo "    * = restart all services"
-        echo "    1 = start trainpixels-main"
-        echo "    2 = start trainpixels-controller"
-        echo "    3 = stop all services"
         echo "    ** start = reboot system"
         echo
 
