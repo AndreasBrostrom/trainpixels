@@ -84,7 +84,7 @@ Before=trainpixels-main.service
 Type=simple
 User=root
 Group=input
-ExecStart=/bin/bash $controller_start_script
+ExecStart=/usr/bin/bash $controller_start_script
 WorkingDirectory=$PROJECT_ROOT
 Restart=always
 RestartSec=5
@@ -140,7 +140,7 @@ PartOf=trainpixels.service
 Type=simple
 User=$CURRENT_USER
 Group=$CURRENT_USER
-ExecStart=/bin/bash $start_script
+ExecStart=/usr/bin/bash $start_script
 WorkingDirectory=$PROJECT_ROOT
 Restart=always
 RestartSec=10
@@ -201,7 +201,7 @@ Before=trainpixels-main.service
 Type=simple
 User=root
 Group=root
-ExecStart=/bin/bash $controlcenter_script
+ExecStart=/usr/bin/bash $controlcenter_script
 WorkingDirectory=$PROJECT_ROOT
 Restart=always
 RestartSec=10
@@ -255,13 +255,13 @@ Group=root
 WorkingDirectory=$PROJECT_ROOT
 
 # Start services in proper order: controller and controlcenter first, then main
-ExecStart=/bin/bash -c 'systemctl start trainpixels-controller trainpixels-controlcenter && systemctl start trainpixels-main'
+ExecStart=/usr/bin/bash -c 'systemctl start trainpixels-controller trainpixels-controlcenter && systemctl start trainpixels-main'
 
 # Stop all TrainPixels services in reverse order
-ExecStop=/bin/bash -c 'systemctl stop trainpixels-main && systemctl stop trainpixels-controlcenter trainpixels-controller'
+ExecStop=/usr/bin/bash -c 'systemctl stop trainpixels-main && systemctl stop trainpixels-controlcenter trainpixels-controller'
 
 # Reload all TrainPixels services
-ExecReload=/bin/bash -c 'systemctl reload-or-restart trainpixels-controller trainpixels-controlcenter && systemctl reload-or-restart trainpixels-main'
+ExecReload=/usr/bin/bash -c 'systemctl reload-or-restart trainpixels-controller trainpixels-controlcenter && systemctl reload-or-restart trainpixels-main'
 
 StandardOutput=journal
 StandardError=journal
