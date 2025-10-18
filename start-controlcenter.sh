@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Set working directory to project root (directory containing this script, then up one level)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # Remove virtual environment first
 if [[ "$1" == "-r" ]]; then
     [[ -d venv ]] && rm -r venv
