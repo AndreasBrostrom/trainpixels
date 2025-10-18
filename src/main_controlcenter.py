@@ -208,11 +208,6 @@ class TrainPixels:
         """Reboot the entire system"""
         logger.info("SYSTEM REBOOT INITIATED - Device will restart in 10 seconds")
         try:
-            # Give a warning countdown
-            for i in range(10, 0, -1):
-                logger.warning(f"System reboot in {i} seconds...")
-                time.sleep(1)
-            
             # Execute system reboot
             logger.critical("REBOOTING SYSTEM NOW!")
             result = subprocess.run(['systemctl', 'reboot'], capture_output=True, text=True, timeout=10)
@@ -278,7 +273,7 @@ class TrainPixels:
         logger.info("Starting TrainPixels Control Center")
         logger.info(f"Monitoring cache file: {self.cache_file}")
         logger.info("Commands:")
-        logger.info("  ** = REBOOT SYSTEM (10 second countdown)")
+        logger.info("  ** = Reboot system")
         logger.info("  * = Restart all services")
         
         # Add initial status check
