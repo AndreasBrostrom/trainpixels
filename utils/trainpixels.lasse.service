@@ -1,0 +1,25 @@
+[Unit]
+Description=TrainPixels LED Controller (user home install)
+After=network.target
+
+[Service]
+Type=simple
+User=lassebros
+Group=lassebros
+WorkingDirectory=/home/lassebros/trainpixels
+ExecStart=/home/lassebros/trainpixels/start.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=PATH=/usr/bin:/bin:/usr/local/bin
+Environment=PYTHONPATH=/home/lassebros/trainpixels/src
+
+# Because this runs from a home directory we avoid restrictive ProtectHome
+NoNewPrivileges=true
+ProtectSystem=off
+ProtectHome=false
+ReadWritePaths=/home/lassebros/trainpixels
+
+[Install]
+WantedBy=multi-user.target

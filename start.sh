@@ -14,6 +14,7 @@ if [[ ! -d venv ]]; then
     source venv/bin/activate
     echo "Installing requirements..."
     pip install -r requirements.txt
+    echo
 else
     source venv/bin/activate
 fi
