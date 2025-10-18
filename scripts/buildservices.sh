@@ -98,7 +98,7 @@ Environment=SUDO_USER=$CURRENT_USER
 # Security settings
 NoNewPrivileges=true
 ProtectSystem=full
-ProtectHome=true
+ProtectHome=false
 ReadWritePaths=$PROJECT_ROOT
 ReadWritePaths=$CURRENT_USER_HOME/trainpixels
 ReadWritePaths=$CURRENT_USER_HOME/.config/trainpixels
@@ -220,7 +220,7 @@ Environment=SUDO_USER=$CURRENT_USER
 # Security settings
 NoNewPrivileges=true
 ProtectSystem=full
-ProtectHome=true
+ProtectHome=false
 ReadWritePaths=$PROJECT_ROOT
 ReadWritePaths=$CURRENT_USER_HOME/trainpixels
 ReadWritePaths=$CURRENT_USER_HOME/.config/trainpixels
