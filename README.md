@@ -1,6 +1,7 @@
 # TrainPixels LED Control System
 
 ## Overview
+
 TrainPixels are a track simulation built with python to simulate a "Retro Swedish Trainway Tacking Wall" previously used by the Swedish Railway Institution; Banverket (today Trafikverket). The script uses NeoPixel (WS2812) LED strips and is built for a RaspberryPie. It also support local debugging without the hardware by using dummy functions.
 
 ## Configuration Examples
@@ -59,6 +60,7 @@ The configs are read from `$scriptRoot/src/` or `~/.config/trainpixels/`.
 ```
 
 ## Track & Event Files
+
 - Place track files in `src/tracks.d/` (see `track_01.json`, `track_02.json` for format)
 - Supported `~/.config/trainpixels/tracks.d/` or `~/Desktop/tracks.d/`
 - Place event files in `src/utils.d/`
@@ -88,9 +90,11 @@ journalctl -u trainpixels.service -f
 ```
 
 ## Troubleshooting
+
 - Ensure your config and track/event files are valid JSON
 - If no tracks/events are found, the script will exit
 - For hardware errors, check your wiring and pin settings
 
 ## License
+
 MIT
