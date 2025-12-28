@@ -5,7 +5,7 @@ import json
 import time
 import random
 import multiprocessing
-from typing import Tuple
+from typing import Tuple, Optional, List, Dict
 from helpfunctions import count_track_utils, get_track_path
 from localtypes import ConfigType, TrackType, UtilsType
 
@@ -64,6 +64,7 @@ def fetch_config() -> ConfigType:
                 status_util_led = config.get("STATUS_UTIL_LED", 0)
                 brightness = config.get("BRIGHTNESS", 0.2)
                 track_speed_modifier = config.get("TRACK_SPEED_MODIFIER", 1.0)
+                max_concurrent_tracks = config.get("MAX_CONCURRENT_TRACKS", 2)
                 random_util_trigger_chance = config.get(
                     "RANDOM_UTIL_TRIGGER_CHANCE", 0)
                 color_table = config.get("COLOR_TABLE", {})
@@ -76,6 +77,7 @@ def fetch_config() -> ConfigType:
                     status_util_led=status_util_led,
                     brightness=brightness,
                     track_speed_modifier=track_speed_modifier,
+                    max_concurrent_tracks=max_concurrent_tracks,
                     random_util_trigger_chance=random_util_trigger_chance,
                     color_table=color_table
                 )
@@ -94,6 +96,7 @@ UTIL_PIN = config["util_pin"]
 STATUS_UTIL_LED = config["status_util_led"]
 BRIGHTNESS = config["brightness"]
 TRACK_SPEED_MODIFIER = config["track_speed_modifier"]
+MAX_CONCURRENT_TRACKS = config["max_concurrent_tracks"]
 RANDOM_UTIL_TRIGGER_CHANCE = config["random_util_trigger_chance"]
 COLOR_TABLE = config["color_table"]
 
@@ -511,77 +514,192 @@ def get_track_by_id(track_id: str) -> TrackType | None:
     return None
 
 
-def run_random_track() -> int:
+def is_track_unique(track_config: TrackType) -> bool:
+    """Return True if a track's internal step IDs are unique (ignore -1)."""
+    if not track_config:
+        return False
+    seen = set()
+    for step in track_config.get('track_path', []):
+        idx = -1
+        if isinstance(step, list) and len(step) > 0:
+            idx = step[0]
+        else:
+            idx = step
+        if idx == -1:
+            continue
+        if idx in seen:
+            return False
+        seen.add(idx)
+    return True
+
+
+def build_track_state(track_config: TrackType) -> Dict:
+    """Build a runtime state for a track config.
+
+    State fields:
+      - id, name
+      - positions: resolved LED indices
+      - utils_map: mapping of step index -> list of util ids
+      - current_index: starts at -1
+      - speed: numeric speed
+      - ticks_per_step: number of ticks required per movement step (10 * speed)
+      - tick_counter: countdown to next step
+    """
+    track_path = track_config.get('track_path', [])
+    positions = get_track_path(track_path)
+
+    utils_map: Dict[int, List[str]] = {}
+    for raw_idx, raw_step in enumerate(track_config.get('track_path', [])):
+        util_ids: List[str] = []
+        if isinstance(raw_step, list) and len(raw_step) > 1:
+            u = raw_step[1]
+            if isinstance(u, list):
+                util_ids = [x for x in u if x]
+            elif u:
+                util_ids = [u]
+        if util_ids:
+            utils_map[raw_idx] = util_ids
+
+    speed = float(track_config.get('speed', 1.0))
+    # Higher speed should result in more frequent movement. We invert the
+    # relation so ticks_per_step decreases when speed increases.
+    # Keep at least 1 tick per step.
+    ticks_per_step = max(1, int(round(10.0 / max(0.01, speed))))
+
+    return {
+        'id': track_config.get('id'),
+        'name': track_config.get('name', 'unnamed'),
+        'positions': positions,
+        'utils_map': utils_map,
+        'current_index': -1,
+        'speed': speed,
+        'ticks_per_step': ticks_per_step,
+        'tick_counter': ticks_per_step,
+    }
+
+
+def event_handler(active_tracks: List[Dict], tick_duration: Optional[float] = None) -> int:
+    """Run a tick loop handling multiple track states.
+
+    - active_tracks: list of track state dicts from build_track_state
+    - tick_duration: seconds per tick (defaults to TRACK_SPEED_MODIFIER)
+
+    Each frame contains 10 ticks. Movement occurs when a track's tick_counter reaches 0;
+    at that tick the track advances one LED, triggers utils for that step, and its
+    tick_counter is reset to ticks_per_step.
+    """
+    if tick_duration is None:
+        tick_duration = TRACK_SPEED_MODIFIER
+
+    tracks = list(active_tracks)
+
+    # Print stack
+    print("\nStack contents:")
+    for ts in tracks:
+        print(f"  - {ts['id']}: {ts['name']} (positions={len(ts['positions'])}, ticks_per_step={ts['ticks_per_step']})")
+
     try:
-        print("\n\033[1mPicking track\033[0m")
+        while len(tracks) > 0:
+            # Each frame has 10 ticks
+            for tick in range(10):
+                any_changed = False
+                # Iterate over a shallow copy since we may remove completed tracks
+                for ts in list(tracks):
+                    ts['tick_counter'] -= 1
+                    if ts['tick_counter'] <= 0:
+                        # Advance
+                        ts['current_index'] += 1
+                        idx = ts['current_index']
+                        positions = ts['positions']
 
-        track_config = get_random_track()
+                        if idx >= len(positions):
+                            # Turn off any remaining LEDs
+                            for p in positions:
+                                set_t_led(p, 'off', show=False)
+                            t_pixels.show()
+                            print(f"  Track {ts['name']} ({ts['id']}) completed")
+                            tracks.remove(ts)
+                            continue
 
-        print(f"  Selected track: {track_config.get('name', 'Unknown')} ({track_config.get('id', 'Unknown')})")
+                        led_pos = positions[idx]
+                        print(f"  [tick {tick}] Track {ts['name']} ({ts['id']}) -> LED {led_pos}")
+                        set_t_led(led_pos, 'red', show=False)
 
-        # Initialize path led path
-        track_path = track_config.get('track_path', [])
-        track_positions = get_track_path(track_path)
-        utils_count = count_track_utils(track_path)
+                        # Turn off previous LED
+                        if idx > 0:
+                            prev = positions[idx - 1]
+                            set_t_led(prev, 'off', show=False)
 
-        print(f"  Path:      {track_positions}")
-        print(f"  Utils:     {utils_count} util(s) will be triggered")
-        print(f"  Speed:     {track_config.get('speed', 1)} x {TRACK_SPEED_MODIFIER} modifier")
-        print(f"  ---")
+                        # Execute utils for this step
+                        utils = ts['utils_map'].get(idx, [])
+                        for util_id in utils:
+                            if util_id:
+                                print(f"    Triggering util {util_id} for track {ts['id']}")
+                                run_util_by_id(util_id)
 
-        # Enabling track
-        print(f"  Enabling track LED", end="")
-        for i in track_config.get('track_path', []):
-            track = -1
+                        any_changed = True
+                        # Reset counter for the next movement
+                        ts['tick_counter'] = ts['ticks_per_step']
 
-            if isinstance(i, list) and len(i) > 0:
-                track = i[0]
-            else:
-                track = i
+                if any_changed:
+                    t_pixels.show()
 
-            if track != -1:
-                print(f" {track}", end="")
-                set_t_led(track, "white", show=False)
-        print("")
-        t_pixels.show()
-
-        # Travel the track
-        for i in track_config['track_path']:
-            track = -1
-
-            if isinstance(i, list) and len(i) > 0:
-                track = i[0]
-                track_util = i[1] if len(i) > 1 else None
-            else:
-                track = i
-                track_util = None
-
-            # Trigger any utils for this step
-            if track != -1:
-                print(f"  Traveling to track LED {track}")
-                set_t_led(track, "red", show=True)
-            else:
-                print(f"  Traveling is paused and waiting {track}")
-
-            # Execute any utils for this step
-            if track_util:
-                # Handle both single util and list of utils uniformly
-                utils_to_run = track_util if isinstance(track_util, list) else [track_util]
-
-                for util_id in utils_to_run:
-                    if util_id:  # Skip empty/None entries
-                        run_util_by_id(util_id)
-
-            wait(10 * TRACK_SPEED_MODIFIER)
-
-            # Turn off previous LED (simulate movement)
-            if track != -1:
-                set_t_led(track, "off", show=True)
+                wait(tick_duration)
 
     except KeyboardInterrupt:
         exit_gracefully()
+
+    return 0
+
+
+def run():
+    """Build the execution stack, show contents, and hand off to event_handler."""
+    try:
+        # Pick a track with uniqueness validated (3 attempts)
+        attempts = 0
+        candidate = None
+        chosen = None
+        while attempts < 3:
+            candidate = get_random_track()
+            if is_track_unique(candidate):
+                chosen = candidate
+                break
+            attempts += 1
+            print(f"  Warning: picked track {candidate.get('id')} contains duplicate step IDs; retrying ({attempts}/3)")
+
+        if chosen is None:
+            print("  Warning: Could not find a unique track after 3 attempts;")
+            # Fallback to the first available track if present
+            if TRACKS:
+                chosen = TRACKS[0]
+                print(f"  Falling back to first track: {chosen.get('id')}")
+            else:
+                raise RuntimeError("No tracks available to run")
+
+        print(f"\nSelected track for run(): {chosen.get('name', 'Unknown')} ({chosen.get('id', 'Unknown')})")
+
+        # Build stack - select up to MAX_CONCURRENT_TRACKS unique tracks
+        stack = [build_track_state(chosen)]
+        # Fill remaining slots
+        attempts = 0
+        while len(stack) < MAX_CONCURRENT_TRACKS and attempts < 10:
+            attempts += 1
+            candidate = get_random_track()
+            if any(candidate.get('id') == s['id'] for s in stack):
+                continue
+            if is_track_unique(candidate):
+                stack.append(build_track_state(candidate))
+
+        # Display stack
+        print("Preparing stack:")
+        for s in stack:
+            print(f"  {s['name']} [{s['id']}] line{s['positions']} tick={s['ticks_per_step']}")
+
+        # Hand off to event handler (it will run multiple tracks concurrently)
+        event_handler(stack, tick_duration=TRACK_SPEED_MODIFIER)
+
     except Exception as e:
-        print(f"  \033[91mERROR: main track loop: {e}\033[0m")
+        print(f"  \033[91mERROR in run(): {e}\033[0m")
 
     return 0
 
@@ -608,7 +726,7 @@ def main():
         # MAIN LOOP
         print("\nStarting main track loop")
         while True:
-            run_random_track()
+            run()
 
     except KeyboardInterrupt:
         exit_gracefully()
